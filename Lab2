@@ -1,4 +1,4 @@
-//moduele Lab2()
+moduele Lab2();
 
 
 module Register(D_in, wEnable, reset, clk, r);
@@ -19,10 +19,10 @@ endmodule
 
 
 module RegBank (
-  input	clk, reset
-  input	[15:0]  ALUBus, regEnable        
-  input  [3:0]   raddr_a, raddr_b
-  output	[15:0]  rdata_a, rdata_b, r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15
+  input	clk, reset;
+  input	[15:0]  ALUBus, regEnable;   
+  input  [3:0]   raddr_a, raddr_b;
+  output	[15:0]  rdata_a, rdata_b, r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15;
 );
 
 	wire [15:0] r [0:15];
