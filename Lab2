@@ -1,2 +1,94 @@
-aa
-aa
+//moduele Lab2()
+
+
+module Register(D_in, wEnable, reset, clk, r);
+	input [15:0] D_in;
+	input clk, wEnable, reset;
+	output reg [15:0] r;
+	 
+	always @(posedge clk) 
+	begin
+		if (reset) 
+			r <= 16'b0;   
+		else if (wEnable) 
+			r <= D_in;    
+		else 
+			r <= r;     
+	end
+endmodule
+
+
+module RegBank (
+  input	clk, reset
+  input	[15:0]  ALUBus, regEnable        
+  input  [3:0]   raddr_a, raddr_b
+  output	[15:0]  rdata_a, rdata_b, r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15
+);
+
+	wire [15:0] r [0:15];
+
+	Register Inst0  (ALUBus, regEnable[0],  reset, clk, R0_out);
+	Register Inst1  (ALUBus, regEnable[1],  reset, clk, R1_out);
+	Register Inst2  (ALUBus, regEnable[2],  reset, clk, R2_out);
+	Register Inst3  (ALUBus, regEnable[3],  reset, clk, R3_out);
+	Register Inst4  (ALUBus, regEnable[4],  reset, clk, R4_out);
+	Register Inst5  (ALUBus, regEnable[5],  reset, clk, R5_out);
+	Register Inst6  (ALUBus, regEnable[6],  reset, clk, R6_out);
+	Register Inst7  (ALUBus, regEnable[7],  reset, clk, R7_out);
+	Register Inst8  (ALUBus, regEnable[8],  reset, clk, R8_out);
+	Register Inst9  (ALUBus, regEnable[9],  reset, clk, R9_out);
+	Register Inst10 (ALUBus, regEnable[10], reset, clk, R10_out);
+	Register Inst11 (ALUBus, regEnable[11], reset, clk, R11_out);
+	Register Inst12 (ALUBus, regEnable[12], reset, clk, R12_out);
+	Register Inst13 (ALUBus, regEnable[13], reset, clk, R13_out);
+	Register Inst14 (ALUBus, regEnable[14], reset, clk, R14_out);
+	Register Inst15 (ALUBus, regEnable[15], reset, clk, R15_out);
+
+	/*
+	//This is for debugging, it will show how the register gets value in the simulation
+	assign r0  = r[0];
+	assign r1  = r[1];
+	assign r2  = r[2];
+	assign r3  = r[3];
+	assign r4  = r[4];
+	assign r5  = r[5];
+	assign r6  = r[6];
+	assign r7  = r[7];
+	assign r8  = r[8];
+	assign r9  = r[9];
+	assign r10 = r[10];
+	assign r11 = r[11];
+	assign r12 = r[12];
+	assign r13 = r[13];
+	assign r14 = r[14];
+	assign r15 = r[15];
+	*/
+	
+	reg [15:0] sel_a, sel_b;
+
+	always @(*) 
+	begin
+		case (raddr_a)
+      4'd0:  sel_a = r[0];   4'd1:  sel_a = r[1];   4'd2:  sel_a = r[2];   4'd3:  sel_a = r[3];
+      4'd4:  sel_a = r[4];   4'd5:  sel_a = r[5];   4'd6:  sel_a = r[6];   4'd7:  sel_a = r[7];
+      4'd8:  sel_a = r[8];   4'd9:  sel_a = r[9];   4'd10: sel_a = r[10];  4'd11: sel_a = r[11];
+      4'd12: sel_a = r[12];  4'd13: sel_a = r[13];  4'd14: sel_a = r[14];  4'd15: sel_a = r[15];
+      default: sel_a = 16'h0000;
+		endcase
+	end
+
+	always @(*) 
+	begin
+		case (raddr_b)
+      4'd0:  sel_b = r[0];   4'd1:  sel_b = r[1];   4'd2:  sel_b = r[2];   4'd3:  sel_b = r[3];
+      4'd4:  sel_b = r[4];   4'd5:  sel_b = r[5];   4'd6:  sel_b = r[6];   4'd7:  sel_b = r[7];
+      4'd8:  sel_b = r[8];   4'd9:  sel_b = r[9];   4'd10: sel_b = r[10];  4'd11: sel_b = r[11];
+      4'd12: sel_b = r[12];  4'd13: sel_b = r[13];  4'd14: sel_b = r[14];  4'd15: sel_b = r[15];
+      default: sel_b = 16'h0000;
+		endcase
+	end
+
+	assign rdata_a = regEnable[raddr_a] ? ALUBus : sel_a;
+	assign rdata_b = regEnable[raddr_b] ? ALUBus : sel_b;
+
+endmodule
