@@ -27,6 +27,8 @@ module RegBank(
   output	[15:0] rdata_a,
   input	[3:0]  raddr_b,
   output	[15:0] rdata_b,
+  
+  // debug-only exports (optional): expose each register value
   output	[15:0] r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15
 );
 
@@ -52,11 +54,15 @@ module RegBank(
   Register Inst14 (ALUBus, regEnable[14], reset, clk, R14_out);
   Register Inst15 (ALUBus, regEnable[15], reset, clk, R15_out);
 
+  
+  //debug-only/ check result from test bench
   assign r0  = R0_out;   assign r1  = R1_out;   assign r2  = R2_out;   assign r3  = R3_out;
   assign r4  = R4_out;   assign r5  = R5_out;   assign r6  = R6_out;   assign r7  = R7_out;
   assign r8  = R8_out;   assign r9  = R9_out;   assign r10 = R10_out;  assign r11 = R11_out;
   assign r12 = R12_out;  assign r13 = R13_out;  assign r14 = R14_out;  assign r15 = R15_out;
 
+  
+  //ALU BUS A & B, MUX
   reg [15:0] sel_a, sel_b;
 
   always @(*) 
@@ -80,7 +86,11 @@ module RegBank(
       default: sel_b = 16'h0000;
     endcase
   end
-
+  
+  
+	// Read data with write-first bypass:
+	// If the same register is being written this cycle (regEnable[address]==1),
+	// return the new ALUBus value; otherwise return the selected old value.
   assign rdata_a = regEnable[raddr_a] ? ALUBus : sel_a;
   assign rdata_b = regEnable[raddr_b] ? ALUBus : sel_b;
 
