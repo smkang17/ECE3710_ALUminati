@@ -1,32 +1,33 @@
 `timescale 1ns/1ps
 
 module Register(
-  input      [15:0] D_in,
-  input             wEnable,
-  input             reset,
-  input             clk,
+  input	[15:0] D_in,
+  input	wEnable,
+  input	reset,
+  input	clk,
   output reg [15:0] r
 );
-  always @(posedge clk) begin
-    if (reset)
-      r <= 16'h0000;
-    else if (wEnable)
-      r <= D_in;
+
+  always @(posedge clk) 
+  begin
+	 if (reset)
+		r <= 16'h0000;
+	 else if (wEnable)
+		r <= D_in;
   end
 endmodule
 
 
 module RegBank(
-  input             clk,
-  input             reset,
-  input      [15:0] ALUBus,
-  input      [15:0] regEnable,
-  input      [3:0]  raddr_a,
-  output     [15:0] rdata_a,
-  input      [3:0]  raddr_b,
-  output     [15:0] rdata_b,
-  output     [15:0] r0, r1, r2, r3, r4, r5, r6, r7,
-                    r8, r9, r10, r11, r12, r13, r14, r15
+  input	clk,
+  input	reset,
+  input	[15:0] ALUBus,
+  input	[15:0] regEnable,
+  input	[3:0]  raddr_a,
+  output	[15:0] rdata_a,
+  input	[3:0]  raddr_b,
+  output	[15:0] rdata_b,
+  output	[15:0] r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15
 );
 
   wire [15:0] R0_out,  R1_out,  R2_out,  R3_out;
@@ -58,7 +59,8 @@ module RegBank(
 
   reg [15:0] sel_a, sel_b;
 
-  always @(*) begin
+  always @(*) 
+  begin
     case (raddr_a)
       4'd0: sel_a = R0_out;   4'd1: sel_a = R1_out;   4'd2: sel_a = R2_out;   4'd3: sel_a = R3_out;
       4'd4: sel_a = R4_out;   4'd5: sel_a = R5_out;   4'd6: sel_a = R6_out;   4'd7: sel_a = R7_out;
@@ -68,7 +70,8 @@ module RegBank(
     endcase
   end
 
-  always @(*) begin
+  always @(*) 
+  begin
     case (raddr_b)
       4'd0: sel_b = R0_out;   4'd1: sel_b = R1_out;   4'd2: sel_b = R2_out;   4'd3: sel_b = R3_out;
       4'd4: sel_b = R4_out;   4'd5: sel_b = R5_out;   4'd6: sel_b = R6_out;   4'd7: sel_b = R7_out;
@@ -87,53 +90,52 @@ endmodule
 module PSR #(
   parameter FWIDTH = 5
 )(
-  input                   clk,
-  input                   reset,
-  input                   we_flags,
-  input      [FWIDTH-1:0] flags_in,
+  input	clk,
+  input	reset,
+  input	we_flags,
+  input	[FWIDTH-1:0] flags_in,
   output reg [FWIDTH-1:0] flags_out
 );
-  always @(posedge clk) begin
-    if (reset)       flags_out <= {FWIDTH{1'b0}};
-    else if (we_flags) flags_out <= flags_in;
+  
+  always @(posedge clk) 
+  begin
+    if (reset)	
+		flags_out <= {FWIDTH{1'b0}};
+    else if (we_flags) 
+		flags_out <= flags_in;
   end
+  
 endmodule
 
 
 module Lab2 (
-  input        clk,
-  input        reset,
+  input	clk,
+  input	reset,
   input  [7:0] Opcode,
   input  [3:0] rs1, rs2, rd,
-  input        regwrite_en,
-  input        use_imm,
+  input	regwrite_en,
+  input	use_imm,
   input  [15:0] imm_ext,
-  input        flags_we,
+  input	flags_we,
   output [15:0] result_C,
   output [4:0]  Flags_out
 );
   wire [15:0] A, B_sel, B, C;
   wire [4:0]  Flags;
   wire [4:0]  psr_flags;
-
   wire [15:0] regEnable = regwrite_en ? (16'h0001 << rd) : 16'h0000;
 
   RegBank RF (
-    .clk(clk), .reset(reset),
-    .ALUBus(C), .regEnable(regEnable),
-    .raddr_a(rs1), .rdata_a(A),
-    .raddr_b(rs2), .rdata_b(B_sel),
-    .r0(), .r1(), .r2(), .r3(), .r4(), .r5(), .r6(), .r7(),
-    .r8(), .r9(), .r10(), .r11(), .r12(), .r13(), .r14(), .r15()
+    .clk(clk), .reset(reset), .ALUBus(C), .regEnable(regEnable), 
+	 .raddr_a(rs1), .rdata_a(A), .raddr_b(rs2), .rdata_b(B_sel),
+    .r0(), .r1(), .r2(), .r3(), .r4(), .r5(), .r6(), .r7(), .r8(), .r9(), .r10(), .r11(), .r12(), .r13(), .r14(), .r15()
   );
 
   assign B = (use_imm) ? imm_ext : B_sel;
 
   PSR u_psr (
     .clk(clk), .reset(reset),
-    .we_flags(flags_we),
-    .flags_in(Flags),
-    .flags_out(psr_flags)
+    .we_flags(flags_we), .flags_in(Flags), .flags_out(psr_flags)
   );
 
   Lab1 u_alu (
