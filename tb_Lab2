@@ -1,1 +1,38 @@
-aa
+`timescale 1ns/1ps
+
+module FibSystem_tb;
+
+  reg clk;
+  reg reset;
+  wire [15:0] result_C;
+  wire [4:0] Flags_out;
+  wire done;
+  wire [15:0] dbg_r0, dbg_r1, dbg_r15, dbg_regEnable;
+
+  Lab2 uut (
+    .clk(clk),
+    .reset(reset),
+    .result_C(result_C),
+    .Flags_out(Flags_out),
+    .done(done),
+    .dbg_r0(dbg_r0),
+    .dbg_r1(dbg_r1),
+    .dbg_r15(dbg_r15),
+    .dbg_regEnable(dbg_regEnable)
+  );
+
+  always #5 clk = ~clk;
+
+  initial begin
+    clk = 0;
+    reset = 1;
+    #20 reset = 0;
+    #2000 $finish;
+  end
+
+  initial begin
+    $monitor("Time=%0t | done=%b | R0=%0d R1=%0d R15=%0d | result_C=%0d",
+             $time, done, dbg_r0, dbg_r1, dbg_r15, result_C);
+  end
+
+endmodule
