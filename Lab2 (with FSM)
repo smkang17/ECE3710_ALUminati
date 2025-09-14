@@ -1,0 +1,346 @@
+`timescale 1ns/1ps
+
+module Register(
+  input	[15:0] D_in,
+  input	wEnable,
+  input	reset,
+  input	clk,
+  output reg [15:0] r
+);
+
+  always @(posedge clk) 
+  begin
+	 if (reset)
+		r <= 16'h0000;
+	 else if (wEnable)
+		r <= D_in;
+  end
+endmodule
+
+
+module RegBank(
+  input	clk,
+  input	reset,
+  input	[15:0] ALUBus,
+  input	[15:0] regEnable,
+  input	[3:0]  raddr_a,
+  output	[15:0] rdata_a,
+  input	[3:0]  raddr_b,
+  output	[15:0] rdata_b,
+  
+  // debug-only exports (optional): expose each register value
+  output	[15:0] r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15
+);
+
+  wire [15:0] R0_out,  R1_out,  R2_out,  R3_out;
+  wire [15:0] R4_out,  R5_out,  R6_out,  R7_out;
+  wire [15:0] R8_out,  R9_out,  R10_out, R11_out;
+  wire [15:0] R12_out, R13_out, R14_out, R15_out;
+
+  Register Inst0  (ALUBus, regEnable[0],  reset, clk, R0_out );
+  Register Inst1  (ALUBus, regEnable[1],  reset, clk, R1_out );
+  Register Inst2  (ALUBus, regEnable[2],  reset, clk, R2_out );
+  Register Inst3  (ALUBus, regEnable[3],  reset, clk, R3_out );
+  Register Inst4  (ALUBus, regEnable[4],  reset, clk, R4_out );
+  Register Inst5  (ALUBus, regEnable[5],  reset, clk, R5_out );
+  Register Inst6  (ALUBus, regEnable[6],  reset, clk, R6_out );
+  Register Inst7  (ALUBus, regEnable[7],  reset, clk, R7_out );
+  Register Inst8  (ALUBus, regEnable[8],  reset, clk, R8_out );
+  Register Inst9  (ALUBus, regEnable[9],  reset, clk, R9_out );
+  Register Inst10 (ALUBus, regEnable[10], reset, clk, R10_out);
+  Register Inst11 (ALUBus, regEnable[11], reset, clk, R11_out);
+  Register Inst12 (ALUBus, regEnable[12], reset, clk, R12_out);
+  Register Inst13 (ALUBus, regEnable[13], reset, clk, R13_out);
+  Register Inst14 (ALUBus, regEnable[14], reset, clk, R14_out);
+  Register Inst15 (ALUBus, regEnable[15], reset, clk, R15_out);
+
+  
+  //debug-only/ check result from test bench
+  assign r0  = R0_out;   assign r1  = R1_out;   assign r2  = R2_out;   assign r3  = R3_out;
+  assign r4  = R4_out;   assign r5  = R5_out;   assign r6  = R6_out;   assign r7  = R7_out;
+  assign r8  = R8_out;   assign r9  = R9_out;   assign r10 = R10_out;  assign r11 = R11_out;
+  assign r12 = R12_out;  assign r13 = R13_out;  assign r14 = R14_out;  assign r15 = R15_out;
+
+  
+  //ALU BUS A & B, MUX
+  reg [15:0] sel_a, sel_b;
+
+  always @(*) 
+  begin
+    case (raddr_a)
+      4'd0: sel_a = R0_out;   4'd1: sel_a = R1_out;   4'd2: sel_a = R2_out;   4'd3: sel_a = R3_out;
+      4'd4: sel_a = R4_out;   4'd5: sel_a = R5_out;   4'd6: sel_a = R6_out;   4'd7: sel_a = R7_out;
+      4'd8: sel_a = R8_out;   4'd9: sel_a = R9_out;   4'd10: sel_a = R10_out; 4'd11: sel_a = R11_out;
+      4'd12: sel_a = R12_out; 4'd13: sel_a = R13_out; 4'd14: sel_a = R14_out; 4'd15: sel_a = R15_out;
+      default: sel_a = 16'h0000;
+    endcase
+  end
+
+  always @(*) 
+  begin
+    case (raddr_b)
+      4'd0: sel_b = R0_out;   4'd1: sel_b = R1_out;   4'd2: sel_b = R2_out;   4'd3: sel_b = R3_out;
+      4'd4: sel_b = R4_out;   4'd5: sel_b = R5_out;   4'd6: sel_b = R6_out;   4'd7: sel_b = R7_out;
+      4'd8: sel_b = R8_out;   4'd9: sel_b = R9_out;   4'd10: sel_b = R10_out; 4'd11: sel_b = R11_out;
+      4'd12: sel_b = R12_out; 4'd13: sel_b = R13_out; 4'd14: sel_b = R14_out; 4'd15: sel_b = R15_out;
+      default: sel_b = 16'h0000;
+    endcase
+  end
+  
+  
+	// Read data with write-first bypass:
+	// If the same register is being written this cycle (regEnable[address]==1),
+	// return the new ALUBus value; otherwise return the selected old value.
+  assign rdata_a = regEnable[raddr_a] ? ALUBus : sel_a;
+  assign rdata_b = regEnable[raddr_b] ? ALUBus : sel_b;
+
+endmodule
+
+
+module PSR #(
+  parameter FWIDTH = 5
+)(
+  input	clk,
+  input	reset,
+  input	we_flags,
+  input	[FWIDTH-1:0] flags_in,
+  output reg [FWIDTH-1:0] flags_out
+);
+  
+  always @(posedge clk) 
+  begin
+    if (reset)	
+		flags_out <= {FWIDTH{1'b0}};
+    else if (we_flags) 
+		flags_out <= flags_in;
+  end
+  
+endmodule
+
+
+module fib_fsm (
+	input wire clk, rst,
+	output reg [3:0] rs1, rs2, rd,		// regfile source1, source2, destination
+	output reg reg_en, done,				// regfile write enable + finish flag 
+	output reg [7:0] alu_op,				// ALU opcode
+	output reg [15:0] data_in,				// direct write bus for initialization
+	output reg use_imm
+);
+
+	// FSM states
+	parameter init0 = 5'd0, 
+				 init1 = 5'd1, 
+				 add2 = 5'd2, 
+				 add3 = 5'd3,
+				 add4 = 5'd4,
+				 add5 = 5'd5,
+				 add6 = 5'd6,
+				 add7 = 5'd7,
+				 add8 = 5'd8,
+				 add9 = 5'd9,
+				 add10 = 5'd10,
+				 add11 = 5'd11,
+				 add12 = 5'd12,
+				 add13 = 5'd13,
+				 add14 = 5'd14,
+				 add15 = 5'd15,
+				 finish = 5'd16;
+
+	reg [4:0] state, next_state;
+	
+	// Sequential state register
+	always @(posedge clk) begin
+		if (rst)
+			state <= init0;
+		else
+			state <= next_state;
+	end
+		
+	// FSM next state logic
+	always @(*) begin
+		case (state)
+			init0: next_state <= init1;
+			init1: next_state <= add2;
+			add2: next_state <= add3;
+			add3: next_state <= add4;
+			add4: next_state <= add5;
+			add5: next_state <= add6;
+			add6: next_state <= add7;
+			add7: next_state <= add8;
+			add8: next_state <= add9;
+			add9: next_state <= add10;
+			add10: next_state <= add11;
+			add11: next_state <= add12;
+			add12: next_state <= add13;
+			add13: next_state <= add14;
+			add14: next_state <= add15;
+			add15: next_state <= finish;
+			finish: next_state <= finish;
+			default: next_state <= init0;
+		endcase
+	end
+				
+	// FSM output logic
+	always @(*) begin
+		// default values
+		rs1 = 4'b0;
+		rs2 = 4'b0;
+		rd = 4'b0;
+		reg_en = 1'b0;
+		alu_op = 8'h00;	// assuming add
+		data_in = 16'd0;
+		use_imm = 1'b0;
+		done = 1'b0;
+		
+		case (state)
+			// initialize Fibonacci base cases
+			init0: begin
+            rs1 = 4'd15;
+            rs2 = 4'd15;
+            rd = 4'd0;     // write R0 = 1
+            data_in = 16'd1;
+            reg_en = 1'b1;
+            use_imm = 1'b1;
+            alu_op = 8'h00; // ADD
+			end
+			init1: begin
+            rs1 = 4'd15;
+            rs2 = 4'd15;
+            rd = 4'd1;     // write R1 = 1
+            data_in = 16'd1;
+            reg_en = 1'b1;
+            use_imm = 1'b1;
+            alu_op = 8'h00; // ADD
+			end
+			
+         // Fibonacci additions
+         add2: begin rs1=4'd0; rs2=4'd1; rd=4'd2; reg_en=1'b1; alu_op=8'h00; use_imm = 1'b0; end
+         add3: begin rs1=4'd1; rs2=4'd2; rd=4'd3; reg_en=1'b1; alu_op=8'h00; use_imm = 1'b0; end
+         add4: begin rs1=4'd2; rs2=4'd3; rd=4'd4; reg_en=1'b1; alu_op=8'h00; use_imm = 1'b0; end
+         add5: begin rs1=4'd3; rs2=4'd4; rd=4'd5; reg_en=1'b1; alu_op=8'h00; use_imm = 1'b0; end
+         add6: begin rs1=4'd4; rs2=4'd5; rd=4'd6; reg_en=1'b1; alu_op=8'h00; use_imm = 1'b0; end
+         add7: begin rs1=4'd5; rs2=4'd6; rd=4'd7; reg_en=1'b1; alu_op=8'h00; use_imm = 1'b0; end
+         add8: begin rs1=4'd6; rs2=4'd7; rd=4'd8; reg_en=1'b1; alu_op=8'h00; use_imm = 1'b0; end
+         add9: begin rs1=4'd7; rs2=4'd8; rd=4'd9; reg_en=1'b1; alu_op=8'h00; use_imm = 1'b0; end
+         add10:begin rs1=4'd8; rs2=4'd9; rd=4'd10; reg_en=1'b1; alu_op=8'h00; use_imm = 1'b0; end
+         add11:begin rs1=4'd9; rs2=4'd10; rd=4'd11; reg_en=1'b1; alu_op=8'h00; use_imm = 1'b0; end
+         add12:begin rs1=4'd10;rs2=4'd11;rd=4'd12; reg_en=1'b1; alu_op=8'h00; use_imm = 1'b0; end
+         add13:begin rs1=4'd11;rs2=4'd12;rd=4'd13; reg_en=1'b1; alu_op=8'h00; use_imm = 1'b0; end
+         add14:begin rs1=4'd12;rs2=4'd13;rd=4'd14; reg_en=1'b1; alu_op=8'h00; use_imm = 1'b0; end
+         add15:begin rs1=4'd13;rs2=4'd14;rd=4'd15; reg_en=1'b1; alu_op=8'h00; use_imm = 1'b0; end
+			
+			finish: begin
+				done = 1'b1;
+			end
+		endcase
+	end
+	
+endmodule		
+
+
+module Lab2 (
+  input  clk,
+  input  reset,
+  output [15:0] result_C,
+  output [4:0]  Flags_out,
+  output done,
+  output [15:0] dbg_r0,
+  output [15:0] dbg_r1,
+  output [15:0] dbg_r15,
+  output [15:0] dbg_regEnable
+);
+
+  // datapath wires
+  wire [15:0] A, B, B_mux, C;
+  wire [4:0]  Flags;
+  wire [4:0]  psr_flags;
+
+  // regfile debug wires (connected to RegBank exported ports)
+  wire [15:0] db_r0, db_r1, db_r15;
+
+  // control wires from FSM
+  wire reg_en;
+  wire [3:0] rs1, rs2, rd;
+  wire [7:0] alu_op;
+  wire [15:0] data_in;
+  wire use_imm;
+  wire done_int;
+
+  // 16-bit write-enable mask derived from reg_en and rd
+  wire [15:0] regEnable;
+  assign regEnable = reg_en ? (16'h0001 << rd) : 16'h0000;
+  assign dbg_regEnable = regEnable;
+
+  // latch final result on rising edge of done (edge-detect)
+  reg [15:0] final_result;
+  reg done_q;
+  always @(posedge clk or posedge reset) begin
+    if (reset) begin
+      final_result <= 16'd0;
+      done_q <= 1'b0;
+    end else begin
+      done_q <= done_int;
+      if (done_int && !done_q) begin
+        final_result <= db_r15; // capture the value actually stored in R15
+      end
+    end
+  end
+
+
+  // RegBank: connect the 16-bit regEnable mask
+  RegBank RF (
+    .clk(clk),
+    .reset(reset),
+    .ALUBus(C),
+    .regEnable(regEnable),
+    .raddr_a(rs1),
+    .rdata_a(A),
+    .raddr_b(rs2),
+    .rdata_b(B),
+    // debug outputs from RegBank
+    .r0(db_r0), .r1(db_r1),
+    .r2(), .r3(), .r4(), .r5(), .r6(), .r7(),
+    .r8(), .r9(), .r10(), .r11(), .r12(), .r13(), .r14(), .r15(db_r15)
+  );
+
+  assign B_mux = (use_imm) ? data_in : B;
+
+  PSR u_psr (
+    .clk(clk), .reset(reset),
+    .we_flags(1'b1), .flags_in(Flags), .flags_out(psr_flags)
+  );
+
+  fib_fsm fsm (
+    .clk(clk),
+    .rst(reset),
+    .rs1(rs1),
+    .rs2(rs2),
+    .rd(rd),
+    .reg_en(reg_en),
+    .alu_op(alu_op),
+    .data_in(data_in),
+    .use_imm(use_imm),
+    .done(done_int)
+  );
+
+  ALU u_alu (
+    .A(A),
+    .B(B_mux),
+    .Opcode(alu_op),
+    .Cin(psr_flags[0]),
+    .C(C),
+    .Flags(Flags),
+    .seven_seg3(), .seven_seg2(), .seven_seg1(), .seven_seg0()
+  );
+
+  // output wiring
+  assign result_C = done_int ? final_result : C;
+  assign Flags_out = psr_flags;
+  assign done = done_int;
+
+  // expose regfile debug ports to TB
+  assign dbg_r0 = db_r0;
+  assign dbg_r1 = db_r1;
+  assign dbg_r15 = db_r15;
+
+endmodule
