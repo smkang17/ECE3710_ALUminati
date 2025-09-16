@@ -334,7 +334,7 @@ module Lab2 (
   );
 
   // output wiring
-  assign result_C = done_int ? final_result : C;
+  assign result_C = done ? db_r15 : C;
   assign Flags_out = psr_flags;
   assign done = done_int;
 
