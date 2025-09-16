@@ -443,7 +443,7 @@ module Lab2 (                       // Top-level for board
     endcase
   end endfunction
 
-wire [15:0] shown = done ? dbg_r15 : result_C;  // 완료면 R15, 진행 중이면 ALU 결과
+wire [15:0] shown = done ? dbg_r15 : result_C;  
 wire [3:0]  n3 = shown[15:12];
 wire [3:0]  n2 = shown[11:8];
 wire [3:0]  n1 = shown[7:4];
