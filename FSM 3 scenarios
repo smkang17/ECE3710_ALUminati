@@ -223,8 +223,8 @@ module fsm_logicmix (
     output reg [15:0] immB
 );
     localparam
-      L_R0=0, L_R1=1, AND12=2, OR13=3, XOR14=4, NOT15=5,
-      ADD6=6, SUB7=7, LSH8=8, RSH9=9, DONE=31;
+      L_R0=0, L_R1=1, AND2=2, OR3=3, XOR4=4, NOT5=5,
+      ADD6=6, SUB7=7, LSH8=8, RSH9=9, DONE=10;
     reg [4:0] st,nst;
 
     always @(posedge clk) if (rst) st<=L_R0; else st<=nst;
@@ -233,11 +233,11 @@ module fsm_logicmix (
         nst=st;
         case (st)
             L_R0: nst=L_R1;
-            L_R1: nst=AND12;
-            AND12: nst=OR13;
-            OR13:  nst=XOR14;
-            XOR14: nst=NOT15;
-            NOT15: nst=ADD6;
+            L_R1: nst=AND2;
+            AND2: nst=OR3;
+            OR3:  nst=XOR4;
+            XOR4: nst=NOT5;
+            NOT5: nst=ADD6;
             ADD6:  nst=SUB7;
             SUB7:  nst=LSH8;
             LSH8:  nst=RSH9;
@@ -256,16 +256,16 @@ module fsm_logicmix (
 				L_R1: begin
 					ra_idx=1; rd_idx=1; wEnable=1; selB_imm=1; alu_op=8'h00; immB=16'h0F0F;
 				end
-            AND12: begin 
+            AND2: begin 
                 ra_idx=0; rb_idx=1; rd_idx=2; wEnable=1; alu_op=8'h0D; selB_imm=0;
             end
-            OR13: begin  
+            OR3: begin  
                 ra_idx=0; rb_idx=1; rd_idx=3; wEnable=1; alu_op=8'h0E; selB_imm=0;
             end
-            XOR14: begin 
+            XOR4: begin 
                 ra_idx=0; rb_idx=1; rd_idx=4; wEnable=1; alu_op=8'h0F; selB_imm=0;
             end
-            NOT15: begin 
+            NOT5: begin 
                 ra_idx=0; rb_idx=0; rd_idx=5; wEnable=1; alu_op=8'h10; selB_imm=0;
             end
             ADD6: begin  
@@ -287,3 +287,4 @@ module fsm_logicmix (
         endcase
     end
 endmodule
+
