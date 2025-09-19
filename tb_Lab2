@@ -1,38 +1,36 @@
 `timescale 1ns/1ps
 
-module FibSystem_tb;
+module tb_Lab2;
 
-  reg clk;
-  reg reset;
-  wire [15:0] result_C;
-  wire [4:0] Flags_out;
-  wire done;
-  wire [15:0] dbg_r0, dbg_r1, dbg_r15, dbg_regEnable;
+  reg  clk;
+  reg  rst;
+  reg  cin;
+  wire [15:0] alu_out;
+  wire [4:0]  flags;
 
+  // DUT
   Lab2 uut (
-    .clk(clk),
-    .reset(reset),
-    .result_C(result_C),
-    .Flags_out(Flags_out),
-    .done(done),
-    .dbg_r0(dbg_r0),
-    .dbg_r1(dbg_r1),
-    .dbg_r15(dbg_r15),
-    .dbg_regEnable(dbg_regEnable)
+    .clk   (clk),
+    .rst   (rst),
+    .cin   (cin),       
+    .alu_out(alu_out),
+    .flags (flags)
   );
 
+  // 100 MHz clock
   always #5 clk = ~clk;
 
   initial begin
     clk = 0;
-    reset = 1;
-    #20 reset = 0;
-    #2000 $finish;
+    rst = 1;
+    cin = 0;
+    #20 rst = 0;        
+    #2000 $finish;      
   end
 
   initial begin
-    $monitor("Time=%0t | done=%b | R0=%0d R1=%0d R15=%0d | result_C=%0d",
-             $time, done, dbg_r0, dbg_r1, dbg_r15, result_C);
+    $monitor("t=%0t | rst=%b | alu_out=%0d (0x%h) | flags=%b",
+             $time, rst, alu_out, alu_out, flags);
   end
 
 endmodule
