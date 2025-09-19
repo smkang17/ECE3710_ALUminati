@@ -238,7 +238,7 @@ module fsm_logicmix (
             end
             LSH8: begin  
                 ra_idx=7; rb_idx=7; rd_idx=8; wEnable=1;
-                alu_op=8'h00; selB_imm=0; 
+                alu_op=8'h11; selB_imm=0; 
             end
             RSH9: begin  
                 ra_idx=8; rb_idx=8; rd_idx=9; wEnable=1; 
