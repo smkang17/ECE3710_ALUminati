@@ -1,3 +1,4 @@
+/*
 module Lab1(
     input [7:0] Opcode,
     input Cin,
@@ -27,11 +28,11 @@ ALU u_alu (
 );
 
 endmodule
+*/
 
-
-module ALU(
+module Lab1(
     A, B, C, Cin, Opcode, Flags,
-    seven_seg3, seven_seg2, seven_seg1, seven_seg0
+    //seven_seg3, seven_seg2, seven_seg1, seven_seg0
 );
 
 input [15:0] A, B;         // 16 bits
@@ -39,10 +40,10 @@ input [7:0] Opcode;        // 8 bits
 input Cin;
 output reg [15:0] C;       // 16 bits
 output reg [4:0] Flags;    // 5 flags
-output reg [6:0] seven_seg3;
-output reg [6:0] seven_seg2;
-output reg [6:0] seven_seg1;
-output reg [6:0] seven_seg0;
+//output reg [6:0] seven_seg3;
+//output reg [6:0] seven_seg2;
+//output reg [6:0] seven_seg1;
+//output reg [6:0] seven_seg0;
 
 // Opcodes
 parameter ADD    = 8'h00;
@@ -325,7 +326,7 @@ always @(A,B,Opcode) begin
     endcase
 end
 
-
+/*
 function [6:0] hex7seg_ah;
     input [3:0] n;
     begin
@@ -362,5 +363,5 @@ always @(*) begin
     seven_seg1 = ~hex7seg_ah(bcd2);
     seven_seg0 = ~hex7seg_ah(bcd1);
 end
-
+*/
 endmodule
