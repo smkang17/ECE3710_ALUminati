@@ -1,0 +1,289 @@
+//There are 3 scenarios which are fib, signed_fib, and logic mix
+//signed_fib is just subtracting 1
+//logic mix is checking for other opcodes, all the conditions are written
+
+
+
+
+
+////fib_fsm
+module fib_fsm (
+    input  wire       clk,
+    input  wire       rst,
+    output reg  [3:0] ra_idx,
+    output reg  [3:0] rb_idx,
+    output reg  [3:0] rd_idx,
+    output reg        wEnable,
+    output reg  [7:0] alu_op,
+    output reg        selB_imm,
+    output reg [15:0] immB
+);
+    localparam S_INIT0 = 5'd0,
+               S_INIT1 = 5'd1,
+               S_FILL  = 5'd2,
+               S_DONE  = 5'd31;
+
+    reg [4:0] state, next_state;
+
+    // rolling pointers for A, B, Dest
+    reg [3:0] pa, pb, pd;
+    reg [3:0] next_pa, next_pb, next_pd;
+
+    // state & pointers
+    always @(posedge clk) begin
+        if (rst) begin
+            state <= S_INIT0;
+            pa    <= 4'd0;
+            pb    <= 4'd1;
+            pd    <= 4'd2;
+        end else begin
+            state <= next_state;
+            pa    <= next_pa;
+            pb    <= next_pb;
+            pd    <= next_pd;
+        end
+    end
+
+    // next-state logic
+    always @* begin
+        next_state = state;
+        next_pa    = pa;
+        next_pb    = pb;
+        next_pd    = pd;
+
+        case (state)
+            S_INIT0: begin
+                next_state = S_INIT1;
+                next_pa    = 4'd0;   // A=R0
+                next_pb    = 4'd1;   // B=R1
+                next_pd    = 4'd2;   // D=R2
+            end
+            S_INIT1: begin
+                next_state = S_FILL;
+            end
+            S_FILL: begin
+                if (pd == 4'd15)
+                    next_state = S_DONE;
+                else begin
+                    next_state = S_FILL;
+                    next_pa = pa + 4'd1;
+                    next_pb = pb + 4'd1;
+                    next_pd = pd + 4'd1;
+                end
+            end
+            default: begin
+                next_state = S_DONE;
+            end
+        endcase
+    end
+
+    // outputs (Moore)
+    always @* begin
+        // defaults
+        ra_idx   = 4'd0;
+        rb_idx   = 4'd0;
+        rd_idx   = 4'd0;
+        wEnable  = 1'b0;
+        alu_op   = 8'h00;    
+        selB_imm = 1'b0;
+        immB     = 16'h0000;
+
+        case (state)
+            // R0 <- 0
+            S_INIT0: begin
+                ra_idx   = 4'd0;
+                rb_idx   = 4'd0;
+                rd_idx   = 4'd0;
+                wEnable  = 1'b1;
+                alu_op   = 8'h00;    // ADD
+                selB_imm = 1'b1;     // B = imm
+                immB     = 16'h0000; // R0 + 0 -> 0
+            end
+
+            // R1 <- 1
+            S_INIT1: begin
+                ra_idx   = 4'd1;
+                rb_idx   = 4'd1;
+                rd_idx   = 4'd1;
+                wEnable  = 1'b1;
+                alu_op   = 8'h00;    // ADD
+                selB_imm = 1'b1;     // B = imm
+                immB     = 16'h0001; // R1 + 1 -> 1
+            end
+
+            // Rpd <- Rpa + Rpb
+            S_FILL: begin
+                ra_idx   = pa;
+                rb_idx   = pb;
+                rd_idx   = pd;
+                wEnable  = 1'b1;
+                alu_op   = 8'h00;    // ADD
+                selB_imm = 1'b0;     // B = reg
+                immB     = 16'h0000;
+            end
+
+            default: begin
+                wEnable  = 1'b0;     // hold
+            end
+        endcase
+    end
+endmodule
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+////fsm_signed
+module fsm_signed (
+    input  wire       clk, rst,
+    output reg  [3:0] ra_idx, rb_idx, rd_idx,
+    output reg        wEnable,
+    output reg  [7:0] alu_op,
+    output reg        selB_imm,
+    output reg [15:0] immB
+);
+    localparam S_LOAD0=0, S_LOAD1=1, S_ADD=2, S_SUB=3, S_LOOP=4, S_DONE=31;
+    reg [4:0] st,nst; reg [3:0] i,ni;
+
+    always @(posedge clk) begin
+        if (rst) begin st<=S_LOAD0; i<=4'd2; end
+        else begin st<=nst; i<=ni; end
+    end
+
+    always @* begin
+        nst=st; ni=i;
+        case (st)
+            S_LOAD0: nst=S_LOAD1;                // R0 <- -1
+            S_LOAD1: nst=S_ADD;                  // R1 <- +2
+            S_ADD  : nst=S_SUB;                  // R2 <- R0 + R1 (=1)
+            S_SUB  : nst=S_LOOP;                 // R3 <- R2 - R1 (=-1)
+            S_LOOP : begin
+                if (i==4'd15) nst=S_DONE;
+                else begin nst=S_LOOP; ni=i+1; end
+            end
+            default: nst=S_DONE;
+        endcase
+    end
+
+    always @* begin
+        ra_idx=0; rb_idx=0; rd_idx=0; wEnable=0; alu_op=8'h00; selB_imm=0; immB=0;
+        case (st)
+            S_LOAD0: begin // R0 <- -1 (0xFFFF)
+                ra_idx=0; rb_idx=0; rd_idx=0; wEnable=1; selB_imm=1; alu_op=8'h00; immB=16'hFFFF;
+            end
+            S_LOAD1: begin // R1 <- +2
+                ra_idx=1; rb_idx=1; rd_idx=1; wEnable=1; selB_imm=1; alu_op=8'h00; immB=16'h0002;
+            end
+            S_ADD: begin   // R2 <- R0 + R1  (=1)
+                ra_idx=0; rb_idx=1; rd_idx=2; wEnable=1; selB_imm=0; alu_op=8'h00;
+            end
+            S_SUB: begin   // R3 <- R2 - R1  (=-1)
+                ra_idx=2; rb_idx=1; rd_idx=3; wEnable=1; selB_imm=0; alu_op=8'h08;
+            end
+            S_LOOP: begin  // R(i) <- R(i-1) + R0  
+                ra_idx=i-1; rb_idx=0; rd_idx=i; wEnable=1; selB_imm=0; alu_op=8'h00;
+            end
+            default: wEnable=0;
+        endcase
+    end
+endmodule
+
+
+
+
+
+
+
+
+
+
+
+
+
+////fsm_logicmix
+module fsm_logicmix (
+    input  wire       clk, rst,
+    output reg  [3:0] ra_idx, rb_idx, rd_idx,
+    output reg        wEnable,
+    output reg  [7:0] alu_op,
+    output reg        selB_imm,
+    output reg [15:0] immB
+);
+    localparam
+      L_R0=0, L_R1=1, AND12=2, OR13=3, XOR14=4, NOT15=5,
+      ADD6=6, SUB7=7, LSH8=8, RSH9=9, DONE=31;
+    reg [4:0] st,nst;
+
+    always @(posedge clk) if (rst) st<=L_R0; else st<=nst;
+
+    always @* begin
+        nst=st;
+        case (st)
+            L_R0: nst=L_R1;
+            L_R1: nst=AND12;
+            AND12: nst=OR13;
+            OR13:  nst=XOR14;
+            XOR14: nst=NOT15;
+            NOT15: nst=ADD6;
+            ADD6:  nst=SUB7;
+            SUB7:  nst=LSH8;
+            LSH8:  nst=RSH9;
+            RSH9:  nst=DONE;
+            default: nst=DONE;
+        endcase
+    end
+
+    always @* begin
+        ra_idx=0; rb_idx=0; rd_idx=0; wEnable=0; alu_op=8'h00; selB_imm=0; immB=16'h0;
+        case (st)
+				L_R0: begin
+            ra_idx=0; rd_idx=0; wEnable=1; selB_imm=1; alu_op=8'h00; immB=16'h00FF;
+				end
+						
+				L_R1: begin
+					ra_idx=1; rd_idx=1; wEnable=1; selB_imm=1; alu_op=8'h00; immB=16'h0F0F;
+				end
+            AND12: begin 
+                ra_idx=0; rb_idx=1; rd_idx=2; wEnable=1; alu_op=8'h0D; selB_imm=0;
+            end
+            OR13: begin  
+                ra_idx=0; rb_idx=1; rd_idx=3; wEnable=1; alu_op=8'h0E; selB_imm=0;
+            end
+            XOR14: begin 
+                ra_idx=0; rb_idx=1; rd_idx=4; wEnable=1; alu_op=8'h0F; selB_imm=0;
+            end
+            NOT15: begin 
+                ra_idx=0; rb_idx=0; rd_idx=5; wEnable=1; alu_op=8'h10; selB_imm=0;
+            end
+            ADD6: begin  
+                ra_idx=3; rb_idx=2; rd_idx=6; wEnable=1; alu_op=8'h00; selB_imm=0;
+            end
+            SUB7: begin  
+                ra_idx=6; rb_idx=4; rd_idx=7; wEnable=1; alu_op=8'h08; selB_imm=0;
+            end
+            LSH8: begin  
+                ra_idx=7; rb_idx=7; rd_idx=8; wEnable=1;
+                alu_op=8'h00; selB_imm=0; 
+            end
+            RSH9: begin  
+                ra_idx=8; rb_idx=8; rd_idx=9; wEnable=1; 
+                
+                alu_op=8'h14; selB_imm=1; immB=16'd3; 
+            end
+            default: wEnable=0;
+        endcase
+    end
+endmodule
