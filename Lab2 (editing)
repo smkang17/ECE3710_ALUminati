@@ -1,0 +1,192 @@
+module Register(
+    input  [15:0] D_in,
+    input         wEnable,
+    input         reset,
+    input         clk,
+    output reg [15:0] r
+);
+    always @(posedge clk) begin
+        if (reset)        r <= 16'h0000;
+        else if (wEnable) r <= D_in;
+    end
+endmodule
+
+
+module RegBank(
+    input         clk,
+    input         reset,
+    input  [15:0] wData,         
+    input  [15:0] regEnable,     
+    input  [3:0]  ra_idx,        
+    input  [3:0]  rb_idx,        
+    output reg [15:0] busA,
+    output reg [15:0] busB_reg
+);
+    wire [15:0] reg_data [0:15];
+
+    genvar i;
+    generate
+        for (i=0; i<16; i=i+1) begin : GEN_REG
+            Register u_reg (
+                .D_in    (wData),
+                .wEnable (regEnable[i]),
+                .reset   (reset),
+                .clk     (clk),
+                .r       (reg_data[i])
+            );
+        end
+    endgenerate
+
+    always @(posedge clk) begin
+        if (reset) begin
+            busA     <= 16'h0000;
+            busB_reg <= 16'h0000;
+        end else begin
+            case (ra_idx)
+                4'd0:  busA <= reg_data[0];
+                4'd1:  busA <= reg_data[1];
+                4'd2:  busA <= reg_data[2];
+                4'd3:  busA <= reg_data[3];
+                4'd4:  busA <= reg_data[4];
+                4'd5:  busA <= reg_data[5];
+                4'd6:  busA <= reg_data[6];
+                4'd7:  busA <= reg_data[7];
+                4'd8:  busA <= reg_data[8];
+                4'd9:  busA <= reg_data[9];
+                4'd10: busA <= reg_data[10];
+                4'd11: busA <= reg_data[11];
+                4'd12: busA <= reg_data[12];
+                4'd13: busA <= reg_data[13];
+                4'd14: busA <= reg_data[14];
+                4'd15: busA <= reg_data[15];
+                default: busA <= 16'h0000;
+            endcase
+
+            case (rb_idx)
+                4'd0:  busB_reg <= reg_data[0];
+                4'd1:  busB_reg <= reg_data[1];
+                4'd2:  busB_reg <= reg_data[2];
+                4'd3:  busB_reg <= reg_data[3];
+                4'd4:  busB_reg <= reg_data[4];
+                4'd5:  busB_reg <= reg_data[5];
+                4'd6:  busB_reg <= reg_data[6];
+                4'd7:  busB_reg <= reg_data[7];
+                4'd8:  busB_reg <= reg_data[8];
+                4'd9:  busB_reg <= reg_data[9];
+                4'd10: busB_reg <= reg_data[10];
+                4'd11: busB_reg <= reg_data[11];
+                4'd12: busB_reg <= reg_data[12];
+                4'd13: busB_reg <= reg_data[13];
+                4'd14: busB_reg <= reg_data[14];
+                4'd15: busB_reg <= reg_data[15];
+                default: busB_reg <= 16'h0000;
+            endcase
+        end
+    end
+endmodule
+
+
+
+module mux(
+    input  [15:0] d0,
+    input  [15:0] d1,
+    input         sel,
+    output [15:0] y
+);
+    assign y = sel ? d1 : d0;
+endmodule
+
+
+
+module RegALU(
+    input         clk,
+    input         reset,
+    input         wEnable,        // global write enable for rd_idx
+    input  [3:0]  ra_idx,         // read A index
+    input  [3:0]  rb_idx,         // read B index
+    input  [3:0]  rd_idx,         // write dest index
+    input  [7:0]  opcode,         // ALU opcode (to Lab1)
+    input         cin,            // ALU carry-in
+    input  [15:0] immB,           // immediate value for B
+    input         selB_imm,       // 1: ALU.B <- immB, 0: ALU.B <- reg
+    output [15:0] alu_out,        // ALU result (also write-back data)
+    output [4:0]  flags           // ALU flags
+);
+    // one-hot write enables
+    wire [15:0] regEnable = wEnable ? (16'h0001 << rd_idx) : 16'h0000;
+
+    // register bank
+    wire [15:0] busA, busB_reg;
+    RegBank uRegBank (
+        .clk       (clk),
+        .reset     (reset),
+        .wData     (alu_out),     // write-back from ALU
+        .regEnable (regEnable),
+        .ra_idx    (ra_idx),
+        .rb_idx    (rb_idx),
+        .busA      (busA),
+        .busB_reg  (busB_reg)
+    );
+
+    // select B = reg or immediate
+    wire [15:0] alu_A = busA;
+    wire [15:0] alu_B;
+    mux MUXB_IMM(busB_reg, immB, selB_imm, alu_B);
+
+
+    Lab1 ALU (
+        .A      (alu_A),
+        .B      (alu_B),
+        .Cin    (cin),
+        .Opcode (opcode),
+        .C      (alu_out),
+        .Flags  (flags)
+
+    );
+endmodule
+
+
+
+module Lab2(
+    input        clk,
+    input        rst,
+    input        cin,          // tie to 1'b0 if unused
+    output [15:0] alu_out,
+    output [4:0]  flags
+);
+    // FSM wires
+    wire [3:0] ra_idx, rb_idx, rd_idx;
+    wire       wEnable, selB_imm;
+    wire [7:0] alu_op;
+    wire [15:0] immB;
+
+    //change name
+	 fib_fsm U_FSM (
+	 //fsm_signed U_FSM (
+	 //fsm_logicmix U_FSM (
+        .clk      (clk),
+        .rst      (rst),
+        .ra_idx   (ra_idx),
+        .rb_idx   (rb_idx),
+        .rd_idx   (rd_idx),
+        .wEnable  (wEnable),
+        .alu_op   (alu_op),
+        .selB_imm (selB_imm),
+        .immB     (immB)
+    );
+
+    RegALU U_DATAPATH (
+        .clk       (clk),
+        .reset     (rst),
+        .wEnable   (wEnable),
+        .ra_idx    (ra_idx),
+        .rb_idx    (rb_idx),
+        .rd_idx    (rd_idx),
+        .opcode    (alu_op),
+        .cin       (cin),
+        .immB      (immB),
+        .selB_imm  (selB_imm),
+        .alu_out   (alu_out),
+        .flags     (flags)
+    );
+endmodule
