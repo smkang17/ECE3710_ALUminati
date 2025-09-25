@@ -5,8 +5,7 @@
 
 
 
-
-////fib_fsm
+///fib_fsm
 module fib_fsm (
     input  wire       clk, rst,
     output reg  [3:0] ra_idx, rb_idx, rd_idx,
@@ -15,83 +14,141 @@ module fib_fsm (
     output reg        selB_imm,
     output reg [15:0] immB
 );
-    localparam S_INIT0 = 5'd0,
-               S_INIT1 = 5'd1,
-               S_K2    = 5'd2,
-               S_K3    = 5'd3,
-               S_K4    = 5'd4,
-               S_K5    = 5'd5,
-               S_K6    = 5'd6,
-               S_K7    = 5'd7,
-               S_K8    = 5'd8,
-               S_K9    = 5'd9,
-               S_K10   = 5'd10,
-               S_K11   = 5'd11,
-               S_K12   = 5'd12,
-               S_K13   = 5'd13,
-               S_K14   = 5'd14,
-               S_K15   = 5'd15,
-               S_DONE  = 5'd31;
 
-    reg [4:0] state, next_state;
+    localparam
+      S_INIT0_R = 6'd0,  S_INIT0_W = 6'd1,
+      S_INIT1_R = 6'd2,  S_INIT1_W = 6'd3,
+      S_K2_R    = 6'd4,  S_K2_W    = 6'd5,
+      S_K3_R    = 6'd6,  S_K3_W    = 6'd7,
+      S_K4_R    = 6'd8,  S_K4_W    = 6'd9,
+      S_K5_R    = 6'd10, S_K5_W    = 6'd11,
+      S_K6_R    = 6'd12, S_K6_W    = 6'd13,
+      S_K7_R    = 6'd14, S_K7_W    = 6'd15,
+      S_K8_R    = 6'd16, S_K8_W    = 6'd17,
+      S_K9_R    = 6'd18, S_K9_W    = 6'd19,
+      S_K10_R   = 6'd20, S_K10_W   = 6'd21,
+      S_K11_R   = 6'd22, S_K11_W   = 6'd23,
+      S_K12_R   = 6'd24, S_K12_W   = 6'd25,
+      S_K13_R   = 6'd26, S_K13_W   = 6'd27,
+      S_K14_R   = 6'd28, S_K14_W   = 6'd29,
+      S_K15_R   = 6'd30, S_K15_W   = 6'd31,
+      S_DONE    = 6'd63;
 
+    reg [5:0] y;  // state
 
     always @(posedge clk) begin
-        if (rst) begin
-            state      <= S_INIT0;
-            next_state <= S_INIT0;
-        end else begin
-            state      <= next_state;  
-            case (state)               
-                S_INIT0: next_state <= S_INIT1;
-                S_INIT1: next_state <= S_K2;
-                S_K2:    next_state <= S_K3;
-                S_K3:    next_state <= S_K4;
-                S_K4:    next_state <= S_K5;
-                S_K5:    next_state <= S_K6;
-                S_K6:    next_state <= S_K7;
-                S_K7:    next_state <= S_K8;
-                S_K8:    next_state <= S_K9;
-                S_K9:    next_state <= S_K10;
-                S_K10:   next_state <= S_K11;
-                S_K11:   next_state <= S_K12;
-                S_K12:   next_state <= S_K13;
-                S_K13:   next_state <= S_K14;
-                S_K14:   next_state <= S_K15;
-                S_K15:   next_state <= S_DONE;
-                default: next_state <= S_DONE;
-            endcase
-        end
+        if (rst) y <= S_INIT0_R;
+        else case (y)
+            S_INIT0_R: y <= S_INIT0_W;
+            S_INIT0_W: y <= S_INIT1_R;
+            S_INIT1_R: y <= S_INIT1_W;
+            S_INIT1_W: y <= S_K2_R;
+
+            S_K2_R:  y <= S_K2_W;   S_K2_W:  y <= S_K3_R;
+            S_K3_R:  y <= S_K3_W;   S_K3_W:  y <= S_K4_R;
+            S_K4_R:  y <= S_K4_W;   S_K4_W:  y <= S_K5_R;
+            S_K5_R:  y <= S_K5_W;   S_K5_W:  y <= S_K6_R;
+            S_K6_R:  y <= S_K6_W;   S_K6_W:  y <= S_K7_R;
+            S_K7_R:  y <= S_K7_W;   S_K7_W:  y <= S_K8_R;
+            S_K8_R:  y <= S_K8_W;   S_K8_W:  y <= S_K9_R;
+            S_K9_R:  y <= S_K9_W;   S_K9_W:  y <= S_K10_R;
+            S_K10_R: y <= S_K10_W;  S_K10_W: y <= S_K11_R;
+            S_K11_R: y <= S_K11_W;  S_K11_W: y <= S_K12_R;
+            S_K12_R: y <= S_K12_W;  S_K12_W: y <= S_K13_R;
+            S_K13_R: y <= S_K13_W;  S_K13_W: y <= S_K14_R;
+            S_K14_R: y <= S_K14_W;  S_K14_W: y <= S_K15_R;
+            S_K15_R: y <= S_K15_W;  S_K15_W: y <= S_DONE;
+
+            default:  y <= S_DONE;
+        endcase
     end
 
+   //(Moore)
+    always @(y) begin
+        ra_idx   = 4'd0;
+        rb_idx   = 4'd0;
+        rd_idx   = 4'd0;
+        wEnable  = 1'b0;
+        alu_op   = 8'h00;     // ADD
+        selB_imm = 1'b0;
+        immB     = 16'h0000;
 
-    always @(state) begin
-        ra_idx=0; rb_idx=0; rd_idx=0;
-        wEnable=0; alu_op=8'h00; selB_imm=0; immB=16'h0000;
+        case (y)
+            // R0 <- 0
+            S_INIT0_R: begin
+                rd_idx   = 4'd0;     
+                selB_imm = 1'b1;     
+                immB     = 16'h0000; 
+                // wEnable=0 (READ phase)
+            end
+            S_INIT0_W: begin
+                rd_idx   = 4'd0;
+                selB_imm = 1'b1;
+                immB     = 16'h0000;
+                wEnable  = 1'b1;     // WRITE phase
+            end
 
-        case (state)
-            S_INIT0: begin rd_idx=0; wEnable=1; selB_imm=1; alu_op=8'h00; immB=16'h0000; end
-            S_INIT1: begin rd_idx=1; wEnable=1; selB_imm=1; alu_op=8'h00; immB=16'h0001; end
+            // R1 <- 1
+            S_INIT1_R: begin
+                rd_idx   = 4'd1;
+                selB_imm = 1'b1;
+                immB     = 16'h0001;
+            end
+            S_INIT1_W: begin
+                rd_idx   = 4'd1;
+                selB_imm = 1'b1;
+                immB     = 16'h0001;
+                wEnable  = 1'b1;
+            end
 
-            S_K2:  begin ra_idx=0; rb_idx=1; rd_idx=2;  wEnable=1; alu_op=8'h00; end
-            S_K3:  begin ra_idx=1; rb_idx=2; rd_idx=3;  wEnable=1; alu_op=8'h00; end
-            S_K4:  begin ra_idx=2; rb_idx=3; rd_idx=4;  wEnable=1; alu_op=8'h00; end
-            S_K5:  begin ra_idx=3; rb_idx=4; rd_idx=5;  wEnable=1; alu_op=8'h00; end
-            S_K6:  begin ra_idx=4; rb_idx=5; rd_idx=6;  wEnable=1; alu_op=8'h00; end
-            S_K7:  begin ra_idx=5; rb_idx=6; rd_idx=7;  wEnable=1; alu_op=8'h00; end
-            S_K8:  begin ra_idx=6; rb_idx=7; rd_idx=8;  wEnable=1; alu_op=8'h00; end
-            S_K9:  begin ra_idx=7; rb_idx=8; rd_idx=9;  wEnable=1; alu_op=8'h00; end
-            S_K10: begin ra_idx=8; rb_idx=9; rd_idx=10; wEnable=1; alu_op=8'h00; end
-            S_K11: begin ra_idx=9; rb_idx=10;rd_idx=11; wEnable=1; alu_op=8'h00; end
-            S_K12: begin ra_idx=10;rb_idx=11;rd_idx=12; wEnable=1; alu_op=8'h00; end
-            S_K13: begin ra_idx=11;rb_idx=12;rd_idx=13; wEnable=1; alu_op=8'h00; end
-            S_K14: begin ra_idx=12;rb_idx=13;rd_idx=14; wEnable=1; alu_op=8'h00; end
-            S_K15: begin ra_idx=13;rb_idx=14;rd_idx=15; wEnable=1; alu_op=8'h00; end
+            // R2 <- R0 + R1
+            S_K2_R:  begin ra_idx=4'd0; rb_idx=4'd1; rd_idx=4'd2; selB_imm=1'b0; end
+            S_K2_W:  begin ra_idx=4'd0; rb_idx=4'd1; rd_idx=4'd2; selB_imm=1'b0; wEnable=1'b1; end
+
+            // R3 <- R1 + R2
+            S_K3_R:  begin ra_idx=4'd1; rb_idx=4'd2; rd_idx=4'd3; selB_imm=1'b0; end
+            S_K3_W:  begin ra_idx=4'd1; rb_idx=4'd2; rd_idx=4'd3; selB_imm=1'b0; wEnable=1'b1; end
+
+            S_K4_R:  begin ra_idx=4'd2; rb_idx=4'd3; rd_idx=4'd4; selB_imm=1'b0; end
+            S_K4_W:  begin ra_idx=4'd2; rb_idx=4'd3; rd_idx=4'd4; selB_imm=1'b0; wEnable=1'b1; end
+
+            S_K5_R:  begin ra_idx=4'd3; rb_idx=4'd4; rd_idx=4'd5; selB_imm=1'b0; end
+            S_K5_W:  begin ra_idx=4'd3; rb_idx=4'd4; rd_idx=4'd5; selB_imm=1'b0; wEnable=1'b1; end
+
+            S_K6_R:  begin ra_idx=4'd4; rb_idx=4'd5; rd_idx=4'd6; selB_imm=1'b0; end
+            S_K6_W:  begin ra_idx=4'd4; rb_idx=4'd5; rd_idx=4'd6; selB_imm=1'b0; wEnable=1'b1; end
+
+            S_K7_R:  begin ra_idx=4'd5; rb_idx=4'd6; rd_idx=4'd7; selB_imm=1'b0; end
+            S_K7_W:  begin ra_idx=4'd5; rb_idx=4'd6; rd_idx=4'd7; selB_imm=1'b0; wEnable=1'b1; end
+
+            S_K8_R:  begin ra_idx=4'd6; rb_idx=4'd7; rd_idx=4'd8; selB_imm=1'b0; end
+            S_K8_W:  begin ra_idx=4'd6; rb_idx=4'd7; rd_idx=4'd8; selB_imm=1'b0; wEnable=1'b1; end
+
+            S_K9_R:  begin ra_idx=4'd7; rb_idx=4'd8; rd_idx=4'd9;  selB_imm=1'b0; end
+            S_K9_W:  begin ra_idx=4'd7; rb_idx=4'd8; rd_idx=4'd9;  selB_imm=1'b0; wEnable=1'b1; end
+
+            S_K10_R: begin ra_idx=4'd8; rb_idx=4'd9; rd_idx=4'd10; selB_imm=1'b0; end
+            S_K10_W: begin ra_idx=4'd8; rb_idx=4'd9; rd_idx=4'd10; selB_imm=1'b0; wEnable=1'b1; end
+
+            S_K11_R: begin ra_idx=4'd9;  rb_idx=4'd10; rd_idx=4'd11; selB_imm=1'b0; end
+            S_K11_W: begin ra_idx=4'd9;  rb_idx=4'd10; rd_idx=4'd11; selB_imm=1'b0; wEnable=1'b1; end
+
+            S_K12_R: begin ra_idx=4'd10; rb_idx=4'd11; rd_idx=4'd12; selB_imm=1'b0; end
+            S_K12_W: begin ra_idx=4'd10; rb_idx=4'd11; rd_idx=4'd12; selB_imm=1'b0; wEnable=1'b1; end
+
+            S_K13_R: begin ra_idx=4'd11; rb_idx=4'd12; rd_idx=4'd13; selB_imm=1'b0; end
+            S_K13_W: begin ra_idx=4'd11; rb_idx=4'd12; rd_idx=4'd13; selB_imm=1'b0; wEnable=1'b1; end
+
+            S_K14_R: begin ra_idx=4'd12; rb_idx=4'd13; rd_idx=4'd14; selB_imm=1'b0; end
+            S_K14_W: begin ra_idx=4'd12; rb_idx=4'd13; rd_idx=4'd14; selB_imm=1'b0; wEnable=1'b1; end
+
+            S_K15_R: begin ra_idx=4'd13; rb_idx=4'd14; rd_idx=4'd15; selB_imm=1'b0; end
+            S_K15_W: begin ra_idx=4'd13; rb_idx=4'd14; rd_idx=4'd15; selB_imm=1'b0; wEnable=1'b1; end
+
+            default:  begin end
         endcase
     end
 endmodule
-
-
 
 
 
