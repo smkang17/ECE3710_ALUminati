@@ -18,7 +18,7 @@ assign Cin = Flags[0];
 
 // Opcodes
 parameter ADD    = 8'b00000101;
-parameter ADDI   = 8'b1010xxxx;
+parameter ADDI   = 8'b0101xxxx;
 parameter ADDU   = 8'b00000110;
 parameter ADDUI  = 8'b0110xxxx;
 parameter ADDC   = 8'b00000111;
