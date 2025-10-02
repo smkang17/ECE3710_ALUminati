@@ -1,0 +1,155 @@
+module FSM #(
+  parameter DATA_WIDTH = 16,
+  parameter ADDR_WIDTH = 10,
+  parameter REG_IDX_W  = 4,
+  parameter ALU_OP_W   = 8
+)(
+  input  wire                  clk,
+  input  wire                  rst,
+  input  wire                  start,
+
+  // BRAM Port A
+  output reg  [ADDR_WIDTH-1:0]   addr_a,
+  output reg  [DATA_WIDTH-1:0]   data_a,
+  output reg                     we_a,
+  input  wire [DATA_WIDTH-1:0]   q_a,
+
+  // BRAM Port B
+  output reg  [ADDR_WIDTH-1:0]   addr_b,
+  output reg  [DATA_WIDTH-1:0]   data_b,
+  output reg                     we_b,
+  input  wire [DATA_WIDTH-1:0]   q_b,
+
+  // RegALU interface
+  output reg                     wEnable,
+  output reg  [REG_IDX_W-1:0]    ra_idx,
+  output reg  [REG_IDX_W-1:0]    rb_idx,
+  output reg  [REG_IDX_W-1:0]    rd_idx,
+  output reg  [ALU_OP_W-1:0]     opcode,
+  output reg                     cin,
+  output reg  [DATA_WIDTH-1:0]   immB,
+  output reg                     selB_imm,
+
+  // RegALU result feedback
+  input  wire [DATA_WIDTH-1:0]   alu_out,
+  input  wire [4:0]              flags,
+
+  // Final outputs
+  output reg  [DATA_WIDTH-1:0]   display_value,
+  output reg                     done,
+  output reg                     error
+);
+
+  // State encoding for the correct scenario
+  localparam S0_INIT_WRITE   = 4'd0; // 1. Write '5' to BRAM
+  localparam S1_READ_BRAM    = 4'd1; // 2. Read '5' from BRAM
+  localparam S2_EXEC_ALU     = 4'd2; // 3. Modify: Calculate q_a + 1
+  localparam S3_WRITE_BRAM_2 = 4'd3; // 4. Write result '6' back
+  localparam S4_READ_BRAM_2  = 4'd4; // 5. Read back '6' for verification
+  localparam S5_VERIFY       = 4'd5; // 6. Verify and Display
+
+  reg [3:0] prev, next;
+  reg [DATA_WIDTH-1:0] temp_val_for_verify;
+
+  
+  // State transition 
+  always @(posedge clk or posedge rst) begin
+    if (rst)
+		prev <= S0_INIT_WRITE;
+    else
+		prev <= next; // FSM now runs freely after reset
+  end
+
+  
+  // Next state logic 
+  always @(prev) begin
+    case (prev)
+      S0_INIT_WRITE:   next = S1_READ_BRAM;
+      S1_READ_BRAM:    next = S2_EXEC_ALU;
+      S2_EXEC_ALU:     next = S3_WRITE_BRAM_2;
+      S3_WRITE_BRAM_2: next = S4_READ_BRAM_2;
+      S4_READ_BRAM_2:  next = S5_VERIFY;
+      S5_VERIFY:       next = S5_VERIFY; // Stay in final state
+      default:         next = S0_INIT_WRITE;
+    endcase
+  end
+
+  
+  // Make error flag latch until reset
+  always @(posedge clk or posedge rst) begin
+      if (rst) begin
+          error <= 1'b0;
+      end else if (prev == S4_READ_BRAM_2 && q_a != temp_val_for_verify) begin
+          error <= 1'b1;
+      end
+  end
+
+  
+  // Latch the ALU result to survive state changes 
+  always @(posedge clk or posedge rst) begin
+      if (rst) begin
+          temp_val_for_verify <= 16'h0000;
+      end else if (prev == S2_EXEC_ALU) begin
+          temp_val_for_verify <= alu_out;
+      end
+  end
+
+  
+  //  Output logic 
+  always @(prev, q_a, temp_val_for_verify) begin
+  
+    addr_a = 10'd0; data_a = 16'h0000; we_a = 1'b0;
+    addr_b = 10'd0; data_b = 16'h0000; we_b = 1'b0;
+    wEnable = 1'b0; ra_idx = 4'd0; rb_idx = 4'd0; rd_idx = 4'd0;
+    opcode = 8'h00; cin = 1'b0; immB = 16'h0000; selB_imm = 1'b0;
+    done = 1'b0; display_value = 16'h0000;
+
+	 
+    case (prev)
+      S0_INIT_WRITE: begin // Write '5' to BRAM, overwriting initial value
+        addr_a = 10'd0;
+        data_a = 16'h0005;
+        we_a   = 1'b1;
+      end
+		
+		
+      S1_READ_BRAM: begin // Read '5' from BRAM
+        addr_a = 10'd0;
+        we_a   = 1'b0;
+      end
+		
+		
+      S2_EXEC_ALU: begin // Modify (Calculate q_a + 1 without using registers)
+
+        ra_idx    = 4'd0;         // A <- R0 (which is 0)
+        rd_idx    = 4'd1;         // Target R1 (though its value is only temporary)
+        selB_imm  = 1'b1;         // B <- immB
+        immB      = q_a + 16'h0001; // immB = 5 + 1 = 6
+        opcode    = 8'b01010000;  // ADDI (C = A + B) -> alu_out = 0 + 6 = 6
+        wEnable   = 1'b1;         // This write to R1 is temporary, not essential for the result
+      end
+		
+		
+      S3_WRITE_BRAM_2: begin // Write result '6' back to BRAM
+        addr_a = 10'd0;
+        data_a = temp_val_for_verify; // Use the latched value '6'
+        we_a   = 1'b1;
+      end
+		
+		
+      S4_READ_BRAM_2: begin // Read '6' back for verification
+        addr_a = 10'd0;
+        we_a   = 1'b0;
+      end
+		
+		
+      S5_VERIFY: begin // Verify and Display
+        display_value = q_a;
+        done          = 1'b1;
+      end
+		
+		
+    endcase
+  end
+
+endmodule
