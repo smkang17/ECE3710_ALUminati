@@ -1,0 +1,159 @@
+module FSM #(
+  parameter DATA_WIDTH = 16,
+  parameter ADDR_WIDTH = 10,
+  parameter REG_IDX_W  = 4,
+  parameter ALU_OP_W   = 8
+)(
+  input  wire                    clk,
+  input  wire                    rst,
+  input  wire                    start,          
+
+  // BRAM Port A 
+  output reg  [ADDR_WIDTH-1:0]   addr_a,
+  output reg  [DATA_WIDTH-1:0]   data_a,
+  output reg                     we_a,
+  input  wire [DATA_WIDTH-1:0]   q_a,
+
+  // BRAM Port B 
+  output reg  [ADDR_WIDTH-1:0]   addr_b,
+  output reg  [DATA_WIDTH-1:0]   data_b,
+  output reg                     we_b,
+  input  wire [DATA_WIDTH-1:0]   q_b,           
+
+  // RegALU interface
+  output reg                     wEnable,
+  output reg  [REG_IDX_W-1:0]    ra_idx,
+  output reg  [REG_IDX_W-1:0]    rb_idx,
+  output reg  [REG_IDX_W-1:0]    rd_idx,
+  output reg  [ALU_OP_W-1:0]     opcode,
+  output reg                     cin,
+  output reg  [DATA_WIDTH-1:0]   immB,
+  output reg                     selB_imm,
+
+  // RegALU result feedback
+  input  wire [DATA_WIDTH-1:0]   alu_out,
+  input  wire [4:0]              flags,
+
+  // Final outputs
+  output reg  [DATA_WIDTH-1:0]   display_value,
+  output reg                     done,
+  output reg                     error
+);
+
+  // State encoding (maintain existing 6 states, adjust semantics only)
+  localparam S0 = 3'd0;  // READ       : Prepare to read mem[0] (we=0)
+  localparam S1 = 3'd1;  // HOLD READ  : Hold address (no load)
+  localparam S2 = 3'd2;  // MODIFY     : R1 <= (q_a + 1)  // Use ADDI
+  localparam S3 = 3'd3;  // WRITE      : mem[0] <= R1 (temp_val)
+  localparam S4 = 3'd4;  // READBACK   : Read again
+  localparam S5 = 3'd5;  // VERIFY/DISPLAY : Compare→latch error, display, done
+
+  reg [2:0] prev, next;
+
+  // Store S2 result to use same reference in S3/S4/S5
+  reg [DATA_WIDTH-1:0] temp_val;
+
+  // State register 
+  always @(posedge clk or posedge rst) begin
+    if (rst) 
+      prev <= S0;
+    else     
+      prev <= next;
+  end
+
+  // Next state 
+  always @(prev) begin
+    case (prev)
+      S0: next = S1;
+      S1: next = S2;
+      S2: next = S3;
+      S3: next = S4;
+      S4: next = S5;
+      S5: next = S5;   // final
+      default: next = S0;
+    endcase
+  end
+
+  // Synchronous auxiliary block: Capture S2 result + sticky error 
+  always @(posedge clk or posedge rst) begin
+    if (rst) begin
+      temp_val <= {DATA_WIDTH{1'b0}};
+      error    <= 1'b0;
+    end else begin
+      // Store alu_out (R1) calculated in S2 for one cycle
+      if (prev == S2) begin
+        temp_val <= alu_out;
+      end
+      // Compare re-read q_a with temp_val (expected value) in S4 → latch error if mismatch 
+      if (prev == S4) begin
+        if (q_a !== temp_val)
+          error <= 1'b1;
+      end
+    end
+  end
+
+  // Output/Control  (defaults → state-specific overrides) 
+  always @(prev) begin
+    // Default values (safe)
+    addr_a = 10'd0; data_a = {DATA_WIDTH{1'b0}}; we_a = 1'b0;
+    addr_b = {ADDR_WIDTH{1'b0}}; data_b = {DATA_WIDTH{1'b0}}; we_b = 1'b0;
+
+    wEnable = 1'b0; ra_idx = {REG_IDX_W{1'b0}}; rb_idx = {REG_IDX_W{1'b0}}; rd_idx = {REG_IDX_W{1'b0}};
+    opcode  = {ALU_OP_W{1'b0}};  // Lab1's NOP: C=A
+    cin     = 1'b0;
+    immB    = {DATA_WIDTH{1'b0}};
+    selB_imm= 1'b0;
+
+    done = 1'b0;
+  
+    display_value = {DATA_WIDTH{1'b0}};
+
+    case (prev)
+      // S0: Prepare READ (q_a valid on next clock)
+      S0: begin
+        addr_a = 10'd0;
+        we_a   = 1'b0;
+      end
+
+      // S1: HOLD READ (maintain address/WE, no load)
+      S1: begin
+        addr_a = 10'd0;
+        we_a   = 1'b0;
+      end
+
+      // S2: MODIFY — R1 <= (q_a + 1)  (ADDI: C = A + B, assume A=0, B=immB)
+      //  - Utilize R0 being 0 after reset (A=R0=0)
+      //  - Put (q_a + 1) directly into immB to perform +1 without moving q_a to a register
+      S2: begin
+        ra_idx   = 4'd0;           // A <- R0 (0 after reset)
+        rd_idx   = 4'd1;           // Write to R1
+        selB_imm = 1'b1;           // B <- immB
+        immB     = q_a + 16'h0001; // q_a + 1
+        opcode   = 8'b0101_0000;   // ADDI (Lab1 casex: matches 0101xxxx)
+        wEnable  = 1'b1;           // R1 <= q_a + 1
+        // temp_val capture is done in synchronous block above (prev==S2)
+      end
+
+      // S3: WRITE — mem[0] <= temp_val (S2 result)
+      S3: begin
+        addr_a = 10'd0;
+        data_a = temp_val;         // Use temp_val instead of alu_out (same reference)
+        we_a   = 1'b1;             // write-first → q_a also updated immediately
+      end
+
+      // S4: READBACK — Read again (q_a re-valid on next clock)
+      S4: begin
+        addr_a = 10'd0;
+        we_a   = 1'b0;
+        // Verification is done in synchronous block (prev==S4)
+      end
+
+      // S5: VERIFY/DISPLAY — Display + complete (error remains sticky)
+      S5: begin
+        display_value = q_a;       // Final re-read value
+        done          = 1'b1;
+      end
+    endcase
+  end
+
+endmodule
