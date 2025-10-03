@@ -1,5 +1,5 @@
 module ALU(
-    A, B, C, Opcode, Flags,
+    A, B, C, Cin, Opcode, Flags,
     //seven_seg3, seven_seg2, seven_seg1, seven_seg0
 );
 
