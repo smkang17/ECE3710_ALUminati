@@ -94,7 +94,6 @@ module FSM (
                 wEnable  = 1'b1;
             end
 
-            // From here on:
             // READ state: set ra_idx/rb_idx to source registers
             // WRITE state: set ra_idx to the (former) destination register
             // (Because RegALU writes to ra_idx when wEnable=1)
@@ -189,4 +188,5 @@ module Fib_FSM (
         .flags    (flags)
     );
 endmodule
+
 
