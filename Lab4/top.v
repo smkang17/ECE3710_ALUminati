@@ -36,9 +36,6 @@ module top (
         .q_b()                // unused
     );
 
-	 // create IR module
-    InstructionRegister uIR (
-    );
 
     ControlFSM uFSM (
         .clk(clk),
@@ -57,11 +54,10 @@ module top (
         .clk(clk),
         .reset(rst),
         .wEnable(Ren),         // from FSM
-        .ra_idx(Rsrc),
+        .ra_idx(Rdest),
         .rb_idx(Rsrc),         // for now, same as source — can adjust if you have Rb field
-        .rd_idx(Rdest),
         .opcode(Opcode),
-        .cin(1'b0),            // carry-in = 0 for now
+        //.cin(1'b0),         
         .immB({8'h00, Imm}),   // zero-extend immediate
         .selB_imm(R_I),
         .alu_out(alu_out),
