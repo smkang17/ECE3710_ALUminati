@@ -16,8 +16,7 @@ module lab4TB;
   // ------------------------- Clock ---------------------------
   // 100 MHz clock
   always #5 clk = ~clk;
-
-  // Utility: 1-clock pulse on start (like your previous labs)
+  
   task pulse_start;
     begin
       @(negedge clk);
@@ -44,8 +43,12 @@ module lab4TB;
   wire [15:0] pc_value  = dut.uPC.pc_value;      
   wire [15:0] inst_word = dut.uBram.q_a;         
   wire        Ren       = dut.uFSM.Ren;          
-  wire [3:0]  Rdest     = dut.uFSM.Rdest;        
-  wire [15:0] alu_out   = dut.uRegALU.alu_out;   
+  wire [3:0]  Rdest     = dut.uFSM.Rdest;
+  wire [3:0]  Rsrc      = dut.uFSM.Rsrc;
+  wire [7:0]  Opcode    = dut.uFSM.Opcode;
+  wire [15:0] alu_out   = dut.uRegALU.alu_out;
+  wire [7:0]  Imm       = dut.uFSM.Imm;
+
 
   // ------------------- R1/R2 tracking ------------------------
   reg [15:0] R1_val;
@@ -71,6 +74,29 @@ module lab4TB;
 	end
 	end
 
+	
+	
+  // -------------------- State-change logger ------------------
+  // Prints once per state entry (uses your controlFSM encoding: 000=FETCH, 001=DECODE, 010=EXECUTE)
+  /*reg [2:0] prev_state;
+  initial prev_state = 3'bxxx;
+
+  always @(posedge clk) begin
+	 if (!rst) begin
+		if (dut.uFSM.state !== prev_state) begin
+		  prev_state <= dut.uFSM.state;
+		  case (dut.uFSM.state)
+			 3'b000: $display("t=%0t | STATE -> FETCH",   $time);
+			 3'b001: $display("t=%0t | STATE -> DECODE",  $time);
+			 3'b010: $display("t=%0t | STATE -> EXECUTE", $time);
+			 default: $display("t=%0t | STATE -> %b",     $time, dut.uFSM.state);
+		  endcase
+		end
+	 end
+  end
+  */
+  
+  
 
 	// -------------------- End condition ------------------------
 	// Stop after the first 4 *distinct PC fetches*
@@ -99,7 +125,7 @@ module lab4TB;
 	if (pc_value !== prev_pc) begin
 	instr_count <= instr_count + 1;
 	prev_pc <= pc_value;
-	$display("t=%0t | INSTR #%0d fetched at PC=%0d", $time, instr_count, pc_value);
+	//$display("t=%0t | INSTR #%0d fetched at PC=%0d", $time, instr_count, pc_value);
 	if (instr_count >= 4) begin
 	@(posedge clk); // settle any writeback
 	$display("================ REGISTER SNAPSHOT ================");
@@ -115,8 +141,8 @@ module lab4TB;
 
 	// ---------------- Console monitor (optional) ---------------
 	initial begin
-	$monitor("t=%0t | rst=%b start=%b | PC=%0d | inst=0x%04h | Ren=%b Rdest=%0d | R1=0x%04h R2=0x%04h",
-	$time, rst, start, pc_value, inst_word, Ren, Rdest, R1_val, R2_val);
+	$monitor("t=%0t | rst=%b start=%b | PC=%0d | inst=0x%04h | Ren=%b Rdest=%0d Rsrc=%0d Opcode=%0b Imm=%0h | R1=0x%04h R2=0x%04h",
+	$time, rst, start, pc_value, inst_word, Ren, Rdest, Rsrc, Opcode, Imm, R1_val, R2_val);
 	end
 
 

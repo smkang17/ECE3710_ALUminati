@@ -33,7 +33,7 @@ module top (
         .we_b(1'b0),
         .clk(clk),
         .q_a(mem_dout),
-        .q_b()                // unused
+        .q_b()                // unused for now
     );
 
 
