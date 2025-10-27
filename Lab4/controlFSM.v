@@ -1,7 +1,7 @@
 module controlFSM (
 	input  wire        clk,
    input  wire        rst,
-   input  wire [15:0] IR,        // instruction register input (fetched instruction)
+   input  wire [15:0] inst,        // instruction register input (fetched instruction)
 
    output reg         PCe,       // PC enable
    output reg         Ren,       // regfile write enable
@@ -17,7 +17,10 @@ module controlFSM (
 	reg [3:0]  dec_Rsrc, dec_Rdest;
 	reg [7:0]  dec_Opcode, dec_Imm;
 	reg        dec_is_cmp;
-	
+	reg		  dec_is_rsg;
+	reg		  dec_R_ALSH;
+	reg		  dec_R_ARSH;
+
 	
  
    // FSM states
@@ -68,21 +71,39 @@ module controlFSM (
 				 Ren    <= 1'b0;
 				 
 				 
-				 if (IR[15:12] == 4'b0000) begin						// if opcode is 0000, selB_imm = 0 (R_type)
+				 if (inst[15:12] == 4'b0000) begin						// if opcode is 0000, selB_imm = 0 (R_type)
 					dec_R_I <= 1'b0;										// selB_imm=0   (496 line in RegALU)
-					dec_Rdest <= IR[11:8];								// destination register index							
-					dec_Rsrc <= IR[3:0];									// source register index
+					dec_Rdest <= inst[11:8];								// destination register index							
+					dec_Rsrc <= inst[3:0];									// source register index
 					dec_Imm <= 8'h00;										// no immediate for R-type
-					dec_Opcode <= {IR[15:12], IR[7:4]};				// combine major opcode and extension
-					dec_is_cmp <= (IR[7:4] == 4'b1011);				// CMP?
+					dec_Opcode <= {inst[15:12], inst[7:4]};				// combine major opcode and extension
+					dec_is_cmp <= (inst[7:4] == 4'b1011);				// CMP?					
 				 end
 				 else begin
+					if(inst[15:12] == 4'b1000 && inst[7:4] == 4'b0100) begin
+						dec_R_I <= 1'b0;									// LSH : 10000100, selB_imm = 0 (R_type)
+					end
+					
+					if(inst[15:12] == 4'b1000 && inst[7:4] == 4'b1100) begin
+						dec_R_I <= 1'b0;									// RSH : 10001100, selB_imm = 0 (R_type)
+					end
+					
+					if(inst[15:12] == 4'b1000 && inst[7:4] == 4'b0010) begin
+						dec_R_I <= 1'b0;									// ALSH : 10000010, selB_imm = 0 (R_type)
+					end
+					
+					if(inst[15:12] == 4'b1000 && inst[7:4] == 4'b0011) begin
+						dec_R_I <= 1'b0;									// ARSH : 10000011, selB_imm = 0 (R_type)
+					end
+					
+					
+					
 					dec_R_I <= 1'b1;										// selB_imm=1 (I_type)
-					dec_Rdest <= IR[11:8];								// destination register index
+					dec_Rdest <= inst[11:8];								// destination register index
 					dec_Rsrc <= 4'h0;										// source register not used
-					dec_Imm <= IR[7:0];									// 8-bit immediate value
-					dec_Opcode <= {IR[15:12], IR[11:8]};			// combine for ALU casex matching
-					dec_is_cmp <= (IR[15:12] == 4'b1011);			// CMPI?
+					dec_Imm <= inst[7:0];									// 8-bit immediate value
+					dec_Opcode <= {inst[15:12], inst[11:8]};			// combine for ALU casex matching
+					dec_is_cmp <= (inst[15:12] == 4'b1011);			// CMPI?
 				 end
 			end
 			
