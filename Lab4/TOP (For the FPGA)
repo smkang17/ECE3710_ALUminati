@@ -1,0 +1,117 @@
+module CPU_Control (
+    input  wire clk,
+    input  wire rst,
+	 output wire [6:0]  HEX0,
+    output wire [6:0]  HEX1,
+    output wire [6:0]  HEX2,
+    output wire [6:0]  HEX3
+);
+
+    wire [15:0] PC_value;
+    wire [15:0] mem_dout; // use this in IR module as an input
+    //wire [15:0] IR_out; // IR MODULE
+    wire        PCe;        // PC enable
+    wire        Ren;        // Register write enable
+    wire [3:0]  Rsrc;       // Source reg index
+    wire [3:0]  Rdest;      // Destination reg index
+    wire        R_I;        // Reg/Imm select
+    wire [7:0]  Opcode;     // ALU opcode
+    wire [7:0]  Imm;        // Immediate value
+    wire [15:0] alu_out;
+    wire [4:0]  flags;
+
+	 
+    pc uPC (
+        .clk(clk),
+        .rst(rst),
+        .PCe(PCe),
+        .pc_value(PC_value)
+    );
+
+    Bram uBram (
+        .data_a(16'h0000),    // no writeback to memory yet
+        .data_b(16'h0000),
+        .addr_a(PC_value),    // instruction address = PC
+        .addr_b(10'b0),
+        .we_a(1'b0),
+        .we_b(1'b0),
+        .clk(clk),
+        .q_a(mem_dout),
+        .q_b()                // unused for now
+    );
+
+
+    controlFSM uFSM (
+        .clk(clk),
+        .rst(rst),
+        .inst(mem_dout),	
+        .PCe(PCe),
+        .Ren(Ren),
+        .Rsrc(Rsrc),
+        .Rdest(Rdest),
+        .R_I(R_I),
+        .Opcode(Opcode),
+        .Imm(Imm)
+    );
+
+    RegALU uRegALU (
+        .clk(clk),
+        .reset(rst),
+        .wEnable(Ren),         // from FSM
+        .ra_idx(Rdest),
+        .rb_idx(Rsrc),         // for now, same as source — can adjust if you have Rb field
+        .opcode(Opcode),
+        //.cin(1'b0),         
+        .immB({8'h00, Imm}),   // zero-extend immediate
+        .selB_imm(R_I),
+        .alu_out(alu_out),
+        .flags(flags)
+    );
+	 
+	 
+	 
+	 
+	   // Reset button polarity
+  localparam RST_ACTIVE_LOW = 1;
+  wire rst_int = (RST_ACTIVE_LOW) ? ~rst : rst;
+  
+    // === clock divider ===
+    reg [25:0] slow_count;
+    always @(posedge clk or posedge rst_int) begin
+        if (rst_int)
+            slow_count <= 26'd0;
+        else
+            slow_count <= slow_count + 1;
+    end
+    wire slow_clk = slow_count[25];
+	 
+	 
+	 
+	 // === HEX display function ===
+	 function [6:0] hex7seg_ah;
+		input [3:0] n;
+		begin
+			case (n)
+				4'h0: hex7seg_ah = 7'b0111111; 4'h1: hex7seg_ah = 7'b0000110;
+				4'h2: hex7seg_ah = 7'b1011011; 4'h3: hex7seg_ah = 7'b1001111;
+				4'h4: hex7seg_ah = 7'b1100110; 4'h5: hex7seg_ah = 7'b1101101;
+				4'h6: hex7seg_ah = 7'b1111101; 4'h7: hex7seg_ah = 7'b0000111;
+				4'h8: hex7seg_ah = 7'b1111111; 4'h9: hex7seg_ah = 7'b1100111;
+				4'hA: hex7seg_ah = 7'b1110111; 4'hB: hex7seg_ah = 7'b1111100;
+				4'hC: hex7seg_ah = 7'b0111001; 4'hD: hex7seg_ah = 7'b1011110;
+				4'hE: hex7seg_ah = 7'b1111001; 4'hF: hex7seg_ah = 7'b1110001;
+				default: hex7seg_ah = 7'b0000000;
+			endcase
+		end
+	 endfunction
+	 
+	 
+	 wire [15:0] display_value = alu_out;
+	 
+	 // Split 16-bit value across 4 displays
+	 assign HEX3 = ~hex7seg_ah(display_value[15:12]);
+	 assign HEX2 = ~hex7seg_ah(display_value[11:8]);
+	 assign HEX1 = ~hex7seg_ah(display_value[7:4]);
+    assign HEX0 = ~hex7seg_ah(display_value[3:0]);
+
+endmodule
