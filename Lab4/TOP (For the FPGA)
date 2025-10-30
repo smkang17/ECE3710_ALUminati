@@ -21,9 +21,28 @@ module CPU_Control (
     wire [4:0]  flags;
 
 	 
+	 
+	 	   // Reset button polarity
+  localparam RST_ACTIVE_LOW = 1;
+  wire rst_int = (RST_ACTIVE_LOW) ? ~rst : rst;
+  
+    // === clock divider ===
+    reg [25:0] slow_count;
+    always @(posedge clk or posedge rst_int) begin
+        if (rst_int)
+            slow_count <= 26'd0;
+        else
+            slow_count <= slow_count + 1;
+    end
+    wire slow_clk = slow_count[25];
+	 
+	 
+	 
+	 
+	 
     pc uPC (
-        .clk(clk),
-        .rst(rst),
+        .clk(slow_clk),
+        .rst(rst_int),    //.rst(rst),
         .PCe(PCe),
         .pc_value(PC_value)
     );
@@ -31,19 +50,19 @@ module CPU_Control (
     Bram uBram (
         .data_a(16'h0000),    // no writeback to memory yet
         .data_b(16'h0000),
-        .addr_a(PC_value),    // instruction address = PC
+        .addr_a(PC_value),      // instruction address = PC
         .addr_b(10'b0),
         .we_a(1'b0),
         .we_b(1'b0),
-        .clk(clk),
+        .clk(slow_clk),
         .q_a(mem_dout),
         .q_b()                // unused for now
     );
 
 
     controlFSM uFSM (
-        .clk(clk),
-        .rst(rst),
+        .clk(slow_clk),
+        .rst(rst_int),      //.rst(rst),
         .inst(mem_dout),	
         .PCe(PCe),
         .Ren(Ren),
@@ -55,8 +74,8 @@ module CPU_Control (
     );
 
     RegALU uRegALU (
-        .clk(clk),
-        .reset(rst),
+        .clk(slow_clk),
+        .reset(rst_int),     //.reset(rst),
         .wEnable(Ren),         // from FSM
         .ra_idx(Rdest),
         .rb_idx(Rsrc),         // for now, same as source — can adjust if you have Rb field
@@ -71,19 +90,7 @@ module CPU_Control (
 	 
 	 
 	 
-	   // Reset button polarity
-  localparam RST_ACTIVE_LOW = 1;
-  wire rst_int = (RST_ACTIVE_LOW) ? ~rst : rst;
-  
-    // === clock divider ===
-    reg [25:0] slow_count;
-    always @(posedge clk or posedge rst_int) begin
-        if (rst_int)
-            slow_count <= 26'd0;
-        else
-            slow_count <= slow_count + 1;
-    end
-    wire slow_clk = slow_count[25];
+
 	 
 	 
 	 
@@ -106,7 +113,7 @@ module CPU_Control (
 	 endfunction
 	 
 	 
-	 wire [15:0] display_value = alu_out;
+	 wire [15:0] display_value = alu_out; //display_value = {8'h00, PC_value[7:0]};
 	 
 	 // Split 16-bit value across 4 displays
 	 assign HEX3 = ~hex7seg_ah(display_value[15:12]);
