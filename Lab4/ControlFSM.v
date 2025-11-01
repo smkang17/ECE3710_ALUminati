@@ -100,7 +100,7 @@ module controlFSM (
 					dec_Imm    <= 8'h00;
 					dec_Opcode <= {op, ext};
 					dec_is_cmp <= is_cmp_r;
-					dec_is_nop <= is_nop;                // <<< ADDED: remember NOP
+					dec_is_nop <= is_nop;                // Remember NOP
 				end 
 				else begin
 					dec_R_I    <= 1'b1;                  // use immediate for B
@@ -128,3 +128,4 @@ module controlFSM (
 	end
 	
 endmodule
+
