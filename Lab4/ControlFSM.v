@@ -41,8 +41,7 @@ module controlFSM (
 	wire is_cmpi_i = (op == 4'b1011);                   // 1011_xxxx
 
 	// NOP detection (treat 0x0000 as NOP: no register write)
-	wire is_nop    = (is_rtype_base && ext == 4'b0000); // <<< ADDED
-
+	wire is_nop    = (is_rtype_base && ext == 4'b0000); 
     // FSM states
     localparam S0_FETCH   = 3'b000;
     localparam S1_DECODE  = 3'b001;
@@ -110,7 +109,7 @@ module controlFSM (
 					dec_Imm    <= inst_reg[7:0];
 					dec_Opcode <= {op, inst_reg[11:8]};
 					dec_is_cmp <= is_cmpi_i;
-					dec_is_nop <= 1'b0;                  // <<< ADDED: I-type is never NOP
+					dec_is_nop <= 1'b0;                  // I-type is never NOP
 				end
 			end
 
@@ -123,7 +122,7 @@ module controlFSM (
 				 Opcode <= dec_Opcode;                  // ALU operation code (determines the operation type)
 
 				 // Enable register write unless the instruction is CMP/CMPI or NOP
-				 Ren <= (dec_is_cmp || dec_is_nop) ? 1'b0 : 1'b1; // <<< ADDED
+				 Ren <= (dec_is_cmp || dec_is_nop) ? 1'b0 : 1'b1; 
 			end
 	  endcase
 	end
