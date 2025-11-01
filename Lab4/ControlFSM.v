@@ -3,13 +3,13 @@ module controlFSM (
    input  wire        rst,
    input  wire [15:0] inst,        // instruction register input (fetched instruction)
 
-   output reg         PCe,       // PC enable
-   output reg         Ren,       // regfile write enable
+   output reg         PCe,         // PC enable
+   output reg         Ren,         // regfile write enable
    output reg [3:0]   Rsrc,
    output reg [3:0]   Rdest,
-   output reg         R_I,       // 0 = Register type, 1 = Immediate type
+   output reg         R_I,         // 0 = Register type, 1 = Immediate type
    output reg [7:0]   Opcode,
-   output reg [7:0]   Imm       // Immediate value
+   output reg [7:0]   Imm          // Immediate value
 );
 	reg [2:0] state;
 	
@@ -17,13 +17,14 @@ module controlFSM (
 	reg [3:0]  dec_Rsrc, dec_Rdest;
 	reg [7:0]  dec_Opcode, dec_Imm;
 	reg        dec_is_cmp;
-	
+	reg        dec_is_nop;          // NOP for gating in EXEC
+
 	reg [15:0] inst_reg;
 	
 	// Wire declared for S1
-	// Fields
+	// Fields (decoded from latched instruction)
    wire [3:0] op    = inst_reg[15:12]; //opcode
-   wire [3:0] ext   = inst_reg[7:4];	  //opcode_extension
+   wire [3:0] ext   = inst_reg[7:4];   //opcode_extension
 	 			
 	// Base R-type (op=0000)
 	wire is_rtype_base  = (op == 4'b0000);
@@ -38,16 +39,19 @@ module controlFSM (
 	// CMP / CMPI detection for Ren gating
 	wire is_cmp_r  = (is_rtype_base && ext == 4'b1011); // 0000_xxxx with ext=1011
 	wire is_cmpi_i = (op == 4'b1011);                   // 1011_xxxx
- 
+
+	// NOP detection (treat 0x0000 as NOP: no register write)
+	wire is_nop    = (is_rtype_base && ext == 4'b0000); // <<< ADDED
+
     // FSM states
-    localparam S0_FETCH  = 3'b000;
-    localparam S1_DECODE = 3'b001;
+    localparam S0_FETCH   = 3'b000;
+    localparam S1_DECODE  = 3'b001;
 	localparam S2_EXECUTE = 3'b010;
-//	localparam S3_STORE = 3'b011;
-//	localparam S4_LOAD = 3'b100;
-//	localparam S5_DOUT = 3'b101;
+//	localparam S3_STORE  = 3'b011;
+//	localparam S4_LOAD   = 3'b100;
+//	localparam S5_DOUT   = 3'b101;
 //	localparam S6_BRANCH = 3'b110;
-//	localparam S7_JUMP = 3'b111;
+//	localparam S7_JUMP   = 3'b111;
 
 	always @(posedge clk or posedge rst) begin
 	  if (rst)
@@ -55,14 +59,15 @@ module controlFSM (
 	  else begin
 			case (state)
 				 S0_FETCH:   state <= S1_DECODE;
-				 S1_DECODE:  state <= S2_EXECUTE;	// this will depend on instruction
-				 S2_EXECUTE: state <= S0_FETCH; // loop until we add more stages
+				 S1_DECODE:  state <= S2_EXECUTE; // this will depend on instruction
+				 S2_EXECUTE: state <= S0_FETCH;   // loop until we add more stages
 				 default:    state <= S0_FETCH;
 			endcase
 	  end
 	end
 
 	always @(posedge clk) begin
+	  // safe defaults each cycle
 	  PCe    <= 1'b0;
 	  Ren    <= 1'b0;
 	  Rsrc   <= 4'bxxxx;
@@ -73,16 +78,16 @@ module controlFSM (
 	
 	  case (state)
 			S0_FETCH: begin
+				// latch raw instruction from memory
 				inst_reg <= inst;
 				
-				PCe <= 1'b0; 
-				Ren <= 1'b0; // no write yet 
-				Rsrc <= 4'bxxxx; 
+				PCe   <= 1'b0; 
+				Ren   <= 1'b0; // no write yet 
+				Rsrc  <= 4'bxxxx; 
 				Rdest <= 4'bxxxx; 
-				R_I <= 1'bx; 
-				Opcode <= 8'hxx; 
-				Imm <= 8'hxx;
-				
+				R_I   <= 1'bx; 
+				Opcode<= 8'hxx; 
+				Imm   <= 8'hxx;
 			end
 	
 			S1_DECODE: begin
@@ -90,32 +95,35 @@ module controlFSM (
 				Ren <= 1'b0;
 
 				if (is_rtype) begin
-					dec_R_I    <= 1'b0;                 // use register operand for B
+					dec_R_I    <= 1'b0;                  // use register operand for B
 					dec_Rdest  <= inst_reg[11:8];
 					dec_Rsrc   <= inst_reg[3:0];
 					dec_Imm    <= 8'h00;
-					dec_Opcode <= {op, ext};           
+					dec_Opcode <= {op, ext};
 					dec_is_cmp <= is_cmp_r;
+					dec_is_nop <= is_nop;                // <<< ADDED: remember NOP
 				end 
 				else begin
-					dec_R_I    <= 1'b1;                 // use immediate for B
+					dec_R_I    <= 1'b1;                  // use immediate for B
 					dec_Rdest  <= inst_reg[11:8];
-					dec_Rsrc   <= 4'h0;                 // unused
+					dec_Rsrc   <= 4'h0;                  // unused
 					dec_Imm    <= inst_reg[7:0];
-					dec_Opcode <= {op, inst_reg[11:8]};   
+					dec_Opcode <= {op, inst_reg[11:8]};
 					dec_is_cmp <= is_cmpi_i;
+					dec_is_nop <= 1'b0;                  // <<< ADDED: I-type is never NOP
 				end
 			end
 
-			
 			S2_EXECUTE: begin
-				 PCe    <= 1'b1;											// Enable PC increment during the execute stage
-				 R_I	  <= dec_R_I;										// Select between register or immediate operand (R/I type)
-				 Rdest  <= dec_Rdest;									// Destination register index (write-back target)
-				 Rsrc	  <= dec_Rsrc;										// Source register index (used if R-type)
-				 Imm	  <= dec_Imm;										// Immediate value (used if I-type)
-				 Opcode <= dec_Opcode;									// ALU operation code (determines the operation type)
-				 Ren <= dec_is_cmp ? 1'b0 : 1'b1;					// Enable register write unless the instruction is CMP/CMPI (flags only)
+				 PCe    <= 1'b1;                        // Enable PC increment during the execute stage
+				 R_I    <= dec_R_I;                     // Select between register or immediate operand (R/I type)
+				 Rdest  <= dec_Rdest;                   // Destination register index (write-back target)
+				 Rsrc   <= dec_Rsrc;                    // Source register index (used if R-type)
+				 Imm    <= dec_Imm;                     // Immediate value (used if I-type)
+				 Opcode <= dec_Opcode;                  // ALU operation code (determines the operation type)
+
+				 // Enable register write unless the instruction is CMP/CMPI or NOP
+				 Ren <= (dec_is_cmp || dec_is_nop) ? 1'b0 : 1'b1; // <<< ADDED
 			end
 	  endcase
 	end
