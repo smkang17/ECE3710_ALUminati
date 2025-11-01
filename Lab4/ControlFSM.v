@@ -121,8 +121,8 @@ module controlFSM (
 				// STORE takes: addr <- Rdest, data <- Rsrc (top will map ra_idx/rb_idx)
 				if (is_store) begin
 					dec_R_I      <= 1'b0;      // keep register path
-					dec_Rdest    <= inst_reg[11:8]; // address register
-					dec_Rsrc     <= inst_reg[3:0];  // data register
+					///// Not used in ISA; should use R_addr instead, dec_Rdest <= inst_reg[11:8];
+					dec_Rsrc     <= inst_reg[11:8];  // data register
 					dec_Imm      <= 8'h00;
 					dec_Opcode   <= 8'hxx;     // don't care for STORE
 					dec_is_cmp   <= 1'b0;
@@ -133,8 +133,8 @@ module controlFSM (
 				// LOAD: present address next state (S4), data arrives following state (S5)
 				else if (is_load) begin
 					dec_R_I      <= 1'b0;      // keep register path
-					dec_Rdest    <= inst_reg[11:8]; // write-back destination
-					dec_Rsrc     <= inst_reg[3:0];  // address register
+					dec_Rdest    <= inst_reg[11:8]; 
+					///// Not used in ISA; should use R_addr instead, dec_Rsrc <= inst_reg[3:0];
 					dec_Imm      <= 8'h00;
 					dec_Opcode   <= 8'hxx;     // don't care for LOAD
 					dec_is_cmp   <= 1'b0;
