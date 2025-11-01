@@ -9,7 +9,9 @@ module controlFSM (
    output reg [3:0]   Rdest,
    output reg         R_I,         // 0 = Register type, 1 = Immediate type
    output reg [7:0]   Opcode,
-   output reg [7:0]   Imm          // Immediate value
+   output reg [7:0]   Imm,          // Immediate value
+	
+	output reg         mem_WE		// Memory write-enable for STORE 
 );
 	reg [2:0] state;
 	
@@ -18,8 +20,11 @@ module controlFSM (
 	reg [7:0]  dec_Opcode, dec_Imm;
 	reg        dec_is_cmp;
 	reg        dec_is_nop;          // NOP for gating in EXEC
-
+	reg        dec_is_store;        
+	reg        dec_is_load;         
+	
 	reg [15:0] inst_reg;
+	
 	
 	// Wire declared for S1
 	// Fields (decoded from latched instruction)
@@ -42,25 +47,41 @@ module controlFSM (
 
 	// NOP detection (treat 0x0000 as NOP: no register write)
 	wire is_nop    = (is_rtype_base && ext == 4'b0000); 
+	
+	// NEW: Memory type detection (no need to change in ALU)
+	// LOAD : OP=0100 & EXT=0000
+   // STOR : OP=0100 & EXT=0100
+   wire is_load  = (op == 4'b0100) && (ext == 4'b0000);
+   wire is_store = (op == 4'b0100) && (ext == 4'b0100);
+	
+	
+	
     // FSM states
     localparam S0_FETCH   = 3'b000;
     localparam S1_DECODE  = 3'b001;
-	localparam S2_EXECUTE = 3'b010;
-//	localparam S3_STORE  = 3'b011;
-//	localparam S4_LOAD   = 3'b100;
-//	localparam S5_DOUT   = 3'b101;
-//	localparam S6_BRANCH = 3'b110;
-//	localparam S7_JUMP   = 3'b111;
+	 localparam S2_EXECUTE = 3'b010;
+	 localparam S3_STORE  = 3'b011;
+//	 localparam S4_LOAD   = 3'b100;
+//	 localparam S5_DOUT   = 3'b101;
+//	 localparam S6_BRANCH = 3'b110;
+//	 localparam S7_JUMP   = 3'b111;
 
 	always @(posedge clk or posedge rst) begin
 	  if (rst)
 			state <= S0_FETCH;
 	  else begin
 			case (state)
-				 S0_FETCH:   state <= S1_DECODE;
-				 S1_DECODE:  state <= S2_EXECUTE; // this will depend on instruction
-				 S2_EXECUTE: state <= S0_FETCH;   // loop until we add more stages
-				 default:    state <= S0_FETCH;
+             S0_FETCH:  state <= S1_DECODE;
+             S1_DECODE : begin
+               if (is_store)      state <= S3_STORE;
+               else if (is_load)  state <= S4_LOAD;
+               else               state <= S2_EXECUTE; // R/I-type
+               end
+             S2_EXECUTE: state <= S0_FETCH; // loop until we add more stages
+             S3_STORE  : state <= S0_FETCH; // STORE finish after write
+             S4_LOAD   : state <= S5_DOUT;   
+             S5_DOUT   : state <= S0_FETCH;
+				 default:   state <= S0_FETCH; 
 			endcase
 	  end
 	end
@@ -74,6 +95,8 @@ module controlFSM (
 	  R_I    <= 1'bx;
 	  Opcode <= 8'h00;
 	  Imm    <= 8'h00;
+	  mem_WE     <= 1'b0;  // 1 for store at s3, else 0       
+
 	
 	  case (state)
 			S0_FETCH: begin
@@ -87,19 +110,47 @@ module controlFSM (
 				R_I   <= 1'bx; 
 				Opcode<= 8'hxx; 
 				Imm   <= 8'hxx;
+				mem_WE     <= 1'b0;  
 			end
 	
 			S1_DECODE: begin
 				PCe <= 1'b0;
 				Ren <= 1'b0;
-
-				if (is_rtype) begin
+				mem_WE  <= 1'b0;
+				
+				// STORE takes: addr <- Rdest, data <- Rsrc (top will map ra_idx/rb_idx)
+				if (is_store) begin
+					dec_R_I      <= 1'b0;      // keep register path
+					dec_Rdest    <= inst_reg[11:8]; // address register
+					dec_Rsrc     <= inst_reg[3:0];  // data register
+					dec_Imm      <= 8'h00;
+					dec_Opcode   <= 8'hxx;     // don't care for STORE
+					dec_is_cmp   <= 1'b0;
+					dec_is_nop   <= 1'b0;
+					dec_is_store <= 1'b1;
+					dec_is_load  <= 1'b0;
+				end
+				// LOAD: present address next state (S4), data arrives following state (S5)
+				else if (is_load) begin
+					dec_R_I      <= 1'b0;      // keep register path
+					dec_Rdest    <= inst_reg[11:8]; // write-back destination
+					dec_Rsrc     <= inst_reg[3:0];  // address register
+					dec_Imm      <= 8'h00;
+					dec_Opcode   <= 8'hxx;     // don't care for LOAD
+					dec_is_cmp   <= 1'b0;
+					dec_is_nop   <= 1'b0;
+					dec_is_store <= 1'b0;
+					dec_is_load  <= 1'b1;
+				end
+				else if (is_rtype) begin
 					dec_R_I    <= 1'b0;                  // use register operand for B
 					dec_Rdest  <= inst_reg[11:8];
 					dec_Rsrc   <= inst_reg[3:0];
 					dec_Imm    <= 8'h00;
 					dec_Opcode <= {op, ext};
 					dec_is_cmp <= is_cmp_r;
+					dec_is_store <= 1'b0;
+					dec_is_load  <= 1'b0;
 					dec_is_nop <= is_nop;                // Remember NOP
 				end 
 				else begin
@@ -110,6 +161,8 @@ module controlFSM (
 					dec_Opcode <= {op, inst_reg[11:8]};
 					dec_is_cmp <= is_cmpi_i;
 					dec_is_nop <= 1'b0;                  // I-type is never NOP
+					dec_is_store <= 1'b0;
+					dec_is_load  <= 1'b0;
 				end
 			end
 
@@ -124,8 +177,54 @@ module controlFSM (
 				 // Enable register write unless the instruction is CMP/CMPI or NOP
 				 Ren <= (dec_is_cmp || dec_is_nop) ? 1'b0 : 1'b1; 
 			end
+			
+			
+			
+			
+			// NEW: STORE 
+			S3_STORE: begin
+			// Perform one memory write cycle using BRAM port-B.
+			// At the top level:
+			//   addr_b <- RegA(out_busA) = Raddr
+			//   data_b <- RegB(out_busB) = Rsrc
+			//   we_b   <- WE (asserted high for this state)
+				PCe    <= 1'b1;                        // Increment PC after STORE is done
+				Ren    <= 1'b0;                        // No register write during STORE
+				mem_WE     <= 1'b1;                    // Enable memory write
+				R_I    <= 1'b0;                        // Keep register path (ALU not used)
+				Rdest  <= dec_Rdest;                   // ra_idx = Raddr (address register)
+				Rsrc   <= dec_Rsrc;                    // rb_idx = Rsrc (data register)
+				Opcode <= 8'hxx; 								// Don't care
+				Imm    <= 8'h00;								// Not used
+			end
+
+        
+        /*
+        
+        // NEW: LOAD 
+        S4_LOAD: begin
+          PCe    <= 
+          Ren    <= 
+          mem_WE     <= 
+          R_I    <= 
+          Rdest  <= 
+          Rsrc   <= 
+          Opcode <= 
+          Imm    <= 
+        end
+
+        // NEW: DOUT
+        S5_DOUT: begin
+          PCe    <= 
+          Ren    <= 
+          mem_WE     <= 
+          Rdest  <= 
+          Rsrc   <= 
+          Opcode <= 
+          Imm    <= 
+        end      
+                         */		
 	  endcase
 	end
 	
 endmodule
-
