@@ -53,6 +53,7 @@ module lab4TB;
   // ------------------- R1/R2 tracking ------------------------
   reg [15:0] R1_val;
   reg [15:0] R2_val;
+  wire [15:0] wb_data = (dut.uFSM.state == 3'b101) ? dut.uBram.q_b : alu_out;
   integer    wb_count;
 
 
@@ -62,14 +63,14 @@ module lab4TB;
 	wb_count = 0;
 	end
 
-
+	// Improved for LOAD
 	always @(posedge clk) begin
 	if (!rst) begin
 	if (Ren) begin
-	wb_count <= wb_count + 1;
-	if (Rdest == 4'd1) R1_val <= alu_out;
-	if (Rdest == 4'd2) R2_val <= alu_out;
-	$display("t=%0t | WB #%0d | R%0d <= 0x%04h", $time, wb_count, Rdest, alu_out);
+		wb_count <= wb_count + 1;
+		if (Rdest == 4'd1) R1_val <= wb_data;
+		if (Rdest == 4'd2) R2_val <= wb_data;
+		$display("t=%0t | WB #%0d | R%0d <= 0x%04h", $time, wb_count, Rdest, wb_data);
 	end
 	end
 	end
@@ -78,23 +79,25 @@ module lab4TB;
 	
   // -------------------- State-change logger ------------------
   // Prints once per state entry (uses your controlFSM encoding: 000=FETCH, 001=DECODE, 010=EXECUTE)
-  /*reg [2:0] prev_state;
-  initial prev_state = 3'bxxx;
-
-  always @(posedge clk) begin
-	 if (!rst) begin
-		if (dut.uFSM.state !== prev_state) begin
-		  prev_state <= dut.uFSM.state;
-		  case (dut.uFSM.state)
-			 3'b000: $display("t=%0t | STATE -> FETCH",   $time);
-			 3'b001: $display("t=%0t | STATE -> DECODE",  $time);
-			 3'b010: $display("t=%0t | STATE -> EXECUTE", $time);
-			 default: $display("t=%0t | STATE -> %b",     $time, dut.uFSM.state);
-		  endcase
-		end
-	 end
-  end
-  */
+//	reg [2:0] prev_state;
+//	initial prev_state = 3'bxxx;
+//
+//	 always @(posedge clk) begin
+//	   if (!rst) begin
+//		  if (dut.uFSM.state !== prev_state) begin
+//		 	prev_state <= dut.uFSM.state;
+//		 	case (dut.uFSM.state)
+//			  3'b000: $display("t=%0t | STATE -> FETCH",   $time);
+//			  3'b001: $display("t=%0t | STATE -> DECODE",  $time);
+//			  3'b010: $display("t=%0t | STATE -> EXECUTE", $time);
+//			  3'b011: $display("t=%0t | STATE -> STORE",   $time);
+//			  3'b100: $display("t=%0t | STATE -> LOAD",    $time);
+//			  3'b101: $display("t=%0t | STATE -> DOUT",    $time);
+//			  default: $display("t=%0t | STATE -> %b",     $time, dut.uFSM.state);
+//			endcase
+//		  end
+//	   end
+//	 end
   
   
 
@@ -147,5 +150,4 @@ module lab4TB;
 
 
 	endmodule
-
 
