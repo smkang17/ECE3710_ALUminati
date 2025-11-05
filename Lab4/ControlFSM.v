@@ -127,7 +127,8 @@ module controlFSM (
 				if (is_store) begin
 					dec_R_I      <= 1'b0;      // keep register path
 					///// Not used in ISA; should use R_addr instead, dec_Rdest <= inst_reg[11:8];
-					dec_Rsrc     <= inst_reg[11:8];  // data register
+					dec_Rdest  <= inst_reg[11:8];
+					dec_Rsrc   <= inst_reg[3:0];
 					dec_Imm      <= 8'h00;
 					dec_Opcode   <= 8'hxx;     // don't care for STORE
 					dec_is_cmp   <= 1'b0;
@@ -138,7 +139,8 @@ module controlFSM (
 				// LOAD: present address next state (S4), data arrives following state (S5)
 				else if (is_load) begin
 					dec_R_I      <= 1'b0;      // keep register path
-					dec_Rdest    <= inst_reg[11:8]; 
+					dec_Rdest  <= inst_reg[11:8];
+					dec_Rsrc   <= inst_reg[3:0];
 					///// Not used in ISA; should use R_addr instead, dec_Rsrc <= inst_reg[3:0];
 					dec_Imm      <= 8'h00;
 					dec_Opcode   <= 8'hxx;     // don't care for LOAD
@@ -230,10 +232,10 @@ module controlFSM (
           Ren    <= 1'b1;									// Enable reg write
           mem_WE <= 1'b0;								   // Still in read mode
 			 R_I	  <= 1'b0;									// Reg path
-          Rdest  <= dec_Rdest;							// Write dest reg
-          Rsrc   <= 4'b0;									// Unused
+          Rdest  <= dec_Rdest;							// Dest reg for loaded data
+          Rsrc   <= dec_Rsrc;								// Write dest reg
           Opcode <= 8'hxx;									// ALU not used
-          Imm    <= 8'h00;									// Not used
+          Imm    <= 8'h00;							// Not used
 			 LSCntl <= 2'b1;
 			 ALU_MUX_Cntl <= 1'b1;							// reg write from memory
         end      

@@ -17,13 +17,12 @@ module top (
     wire [4:0]  flags;
 	 wire [15:0] busA_out;   
 	 wire [15:0] busB_out;
-	 wire	[1:0]	 LSCntl; 
+	 wire	    	 LSCntl; 
 	 wire 		 ALU_MUX_Cntl; 
-	 //wire [15:0] temp; // temporary place holder output of b mem port which isnt currently used
 	 
 	 // LSCntl MUX
     reg [15:0] mem_addr;
-    always @(posedge clk) begin
+    always @(LSCntl or PC_value or busA_out) begin
         case (LSCntl)
             1'b0: mem_addr = PC_value;               // instruction fetch
             1'b1: mem_addr = busA_out;               // simulated reg value
@@ -34,14 +33,13 @@ module top (
 	 
 	 //ALU_MUX_Cntl MUX
 	 reg [15:0] wb_data;
-	 always @(posedge clk) begin
+	 always @(ALU_MUX_Cntl or alu_out or mem_dout) begin
         case (ALU_MUX_Cntl)
             1'b0: wb_data = alu_out;               // instruction fetch
             1'b1: wb_data = mem_dout;               // simulated reg value
-            default: mem_addr = 16'h0000;
+            default: wb_data = 16'h0000;
         endcase
     end
-	 
 	 
 	 
 	 

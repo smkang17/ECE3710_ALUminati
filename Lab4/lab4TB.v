@@ -48,18 +48,25 @@ module lab4TB;
   wire [7:0]  Opcode    = dut.uFSM.Opcode;
   wire [15:0] alu_out   = dut.uRegALU.alu_out;
   wire [7:0]  Imm       = dut.uFSM.Imm;
+  wire [15:0] mem_dout  = dut.mem_dout;
+  wire [9:0]  addr_a     = dut.uBram.addr_a;
+  
 
 
   // ------------------- R1/R2 tracking ------------------------
+  reg [15:0] R0_val;
   reg [15:0] R1_val;
   reg [15:0] R2_val;
+  reg [15:0] R3_val;
   wire [15:0] wb_data = (dut.uFSM.state == 3'b101) ? dut.uBram.q_b : alu_out;
   integer    wb_count;
 
 
 	initial begin
+	R0_val = 16'h0000;
 	R1_val = 16'h0000;
 	R2_val = 16'h0000;
+	R3_val = 16'h0000;
 	wb_count = 0;
 	end
 
@@ -68,8 +75,10 @@ module lab4TB;
 	if (!rst) begin
 	if (Ren) begin
 		wb_count <= wb_count + 1;
+		if (Rdest == 4'd1) R0_val <= wb_data;
 		if (Rdest == 4'd1) R1_val <= wb_data;
 		if (Rdest == 4'd2) R2_val <= wb_data;
+		if (Rdest == 4'd3) R3_val <= wb_data;
 		$display("t=%0t | WB #%0d | R%0d <= 0x%04h", $time, wb_count, Rdest, wb_data);
 	end
 	end
@@ -129,11 +138,13 @@ module lab4TB;
 	instr_count <= instr_count + 1;
 	prev_pc <= pc_value;
 	//$display("t=%0t | INSTR #%0d fetched at PC=%0d", $time, instr_count, pc_value);
-	if (instr_count >= 4) begin
+	if (instr_count == 7) begin
 	@(posedge clk); // settle any writeback
 	$display("================ REGISTER SNAPSHOT ================");
+	$display("R0 = 0x%04h (%0d)", R0_val, R0_val);
 	$display("R1 = 0x%04h (%0d)", R1_val, R1_val);
 	$display("R2 = 0x%04h (%0d)", R2_val, R2_val);
+	$display("R2 = 0x%04h (%0d)", R3_val, R3_val);
 	$display("===================================================");
 	$finish;
 	end
@@ -144,10 +155,9 @@ module lab4TB;
 
 	// ---------------- Console monitor (optional) ---------------
 	initial begin
-	$monitor("t=%0t | rst=%b start=%b | PC=%0d | inst=0x%04h | Ren=%b Rdest=%0d Rsrc=%0d Opcode=%0b Imm=%0h | R1=0x%04h R2=0x%04h",
-	$time, rst, start, pc_value, inst_word, Ren, Rdest, Rsrc, Opcode, Imm, R1_val, R2_val);
+	$monitor("t=%0t | rst=%b start=%b | PC=%0d | memdout=0x%04h | Ren=%b Rdest=%0d Rsrc=%0d Opcode=%0b Imm=%0h | R0=0x%04h R1=0x%04h R2=0x%04h R3=0x%04h",
+	$time, rst, start, addr_a, mem_dout, Ren, Rdest, Rsrc, Opcode, Imm, R0_val, R1_val, R2_val, R3_val);
 	end
 
 
 	endmodule
-
