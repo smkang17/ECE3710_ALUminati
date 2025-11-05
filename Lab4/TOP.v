@@ -4,8 +4,7 @@ module top (
 );
 
     wire [15:0] PC_value;
-    wire [15:0] mem_dout; // use this in IR module as an input
-    wire [15:0] data_dout; // Data output from memory
+    wire [15:0] mem_dout;   // use this in IR module as an input
     wire        PCe;        // PC enable
     wire        Ren;        // Register write enable
     wire [3:0]  Rsrc;       // Source reg index
@@ -16,10 +15,35 @@ module top (
 	 wire 		 mem_WE;		 // Memory write enable (for STORE)
     wire [15:0] alu_out;
     wire [4:0]  flags;
-
+	 wire [15:0] busA_out;   
+	 wire [15:0] busB_out;
 	 wire	[1:0]	 LSCntl; 
 	 wire 		 ALU_MUX_Cntl; 
-
+	 //wire [15:0] temp; // temporary place holder output of b mem port which isnt currently used
+	 
+	 // LSCntl MUX
+    reg [15:0] mem_addr;
+    always @(posedge clk) begin
+        case (LSCntl)
+            1'b0: mem_addr = PC_value;               // instruction fetch
+            1'b1: mem_addr = busA_out;               // simulated reg value
+            default: mem_addr = 16'h0000;
+        endcase
+    end
+	 
+	 
+	 //ALU_MUX_Cntl MUX
+	 reg [15:0] wb_data;
+	 always @(posedge clk) begin
+        case (ALU_MUX_Cntl)
+            1'b0: wb_data = alu_out;               // instruction fetch
+            1'b1: wb_data = mem_dout;               // simulated reg value
+            default: mem_addr = 16'h0000;
+        endcase
+    end
+	 
+	 
+	 
 	 
     pc uPC (
         .clk(clk),
@@ -54,36 +78,25 @@ module top (
         //.cin(1'b0),         
         .immB({8'h00, Imm}),   // zero-extend immediate
         .selB_imm(R_I),
-        .alu_out(alu_result),
-        .flags(flags)
+        .alu_out(alu_out),
+        .flags(flags),
+		  .busA_out(busA_out),
+		  .busB_out(busB_out),
+		  .wb_data(wb_data)
     );
 
-	 assign alu_out = alu_result;
-
-    // LSCntl MUX
-    reg [15:0] mem_addr;
-    always @(*) begin
-        case (LSCntl)
-            2'b00: mem_addr = PC_value;               // instruction fetch
-            2'b01: mem_addr = {12'b0, Rdest};         // simulated reg value
-            2'b10: mem_addr = {12'b0, Rsrc};          // simulated reg value
-            default: mem_addr = 16'h0000;
-        endcase
-    end
-
-    // write back MUX
-    wire [15:0] wb_data = (ALU_MUX_Cntl) ? data_dout : alu_out;
-
+	 
+	 //b not used yet
 	 Bram uBram (
-        .data_a(16'h0000),    // no writeback to memory yet
-        .data_b(alu_out),		// data to store (RegB)
-        .addr_a(PC_value),    // instruction address = PC
-        .addr_b(mem_addr),
-        .we_a(1'b0),
-        .we_b(mem_WE),			// FSM controls WE
+        .data_a(busB_out),   	// data stored from Rsrc during store inst
+        .data_b(16'h0000),		
+        .addr_a(mem_addr),    // instruction address = PC
+        .addr_b(1'b0),
+        .we_a(mem_WE),
+        .we_b(1'b0),			// FSM controls WE
         .clk(clk),
         .q_a(mem_dout),
-        .q_b(data_dout)
+        .q_b()
     );
 
 endmodule

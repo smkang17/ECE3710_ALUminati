@@ -11,7 +11,10 @@ module controlFSM (
    output reg [7:0]   Opcode,
    output reg [7:0]   Imm,          // Immediate value
 	
-	output reg         mem_WE		// Memory write-enable for STORE 
+	output reg         mem_WE,			// Memory write-enable for STORE 
+	
+	output reg      	 LSCntl,			
+	output reg			 ALU_MUX_Cntl
 );
 	reg [2:0] state;
 	
@@ -23,7 +26,7 @@ module controlFSM (
 	reg        dec_is_store;        
 	reg        dec_is_load;         
 	
-	reg [15:0] inst_reg;
+	reg [15:0] inst_reg; //IR
 	
 	
 	// Wire declared for S1
@@ -61,8 +64,8 @@ module controlFSM (
     localparam S1_DECODE  = 3'b001;
 	 localparam S2_EXECUTE = 3'b010;
 	 localparam S3_STORE  = 3'b011;
-//	 localparam S4_LOAD   = 3'b100;
-//	 localparam S5_DOUT   = 3'b101;
+	 localparam S4_LOAD   = 3'b100;
+	 localparam S5_DOUT   = 3'b101;
 //	 localparam S6_BRANCH = 3'b110;
 //	 localparam S7_JUMP   = 3'b111;
 
@@ -95,7 +98,9 @@ module controlFSM (
 	  R_I    <= 1'bx;
 	  Opcode <= 8'h00;
 	  Imm    <= 8'h00;
-	  mem_WE     <= 1'b0;  // 1 for store at s3, else 0       
+	  mem_WE     <= 1'b0;  // 1 for store at s3, else 0    
+	  LSCntl <= 2'b00;
+	  ALU_MUX_Cntl <= 1'b0;
 
 	
 	  case (state)
@@ -176,8 +181,9 @@ module controlFSM (
 
 				 // Enable register write unless the instruction is CMP/CMPI or NOP
 				 Ren <= (dec_is_cmp || dec_is_nop) ? 1'b0 : 1'b1; 
+				 
+				 ALU_MUX_Cntl <= 1'b0;						 // writeback from ALU
 			end
-			
 			
 			
 			
@@ -190,40 +196,48 @@ module controlFSM (
 			//   we_b   <- WE (asserted high for this state)
 				PCe    <= 1'b1;                        // Increment PC after STORE is done
 				Ren    <= 1'b0;                        // No register write during STORE
-				mem_WE     <= 1'b1;                    // Enable memory write
+				mem_WE <= 1'b1;                        // Enable memory write
 				R_I    <= 1'b0;                        // Keep register path (ALU not used)
 				Rdest  <= dec_Rdest;                   // ra_idx = Raddr (address register)
 				Rsrc   <= dec_Rsrc;                    // rb_idx = Rsrc (data register)
 				Opcode <= 8'hxx; 								// Don't care
 				Imm    <= 8'h00;								// Not used
+				LSCntl <= 1'b1;								// addr from busA (Rdest)
+				ALU_MUX_Cntl <= 1'b0;						// irrelevant
 			end
-
         
-        /*
-        
-        // NEW: LOAD 
+        // NEW: LOAD
         S4_LOAD: begin
-          PCe    <= 
-          Ren    <= 
-          mem_WE     <= 
-          R_I    <= 
-          Rdest  <= 
-          Rsrc   <= 
-          Opcode <= 
-          Imm    <= 
+		  // Places memory address (from Rsrc) on the address bus
+		  // No write, memory is read only
+          PCe    <= 1'b0;									// Hold PC
+          Ren    <= 1'b0;									// No reg write yet
+          mem_WE <= 1'b0;								   // Read mode only
+          R_I    <= 1'b0;									// Reg addressing
+          Rdest  <= dec_Rdest;							// Dest reg for loaded data
+          Rsrc   <= dec_Rsrc;								// Address reg
+          Opcode <= 8'hxx;									// ALU not used
+          Imm    <= 8'h00;									// Not used
+			 LSCntl <= 2'b1;									// choose addr source
+			 ALU_MUX_Cntl <= 1'b0;							// still ALU path
         end
 
         // NEW: DOUT
         S5_DOUT: begin
-          PCe    <= 
-          Ren    <= 
-          mem_WE     <= 
-          Rdest  <= 
-          Rsrc   <= 
-          Opcode <= 
-          Imm    <= 
+		  // Memory data is now valid
+		  // Writes the fetched data back into the dest reg
+          PCe    <= 1'b1;									// Increment PC after load completes
+          Ren    <= 1'b1;									// Enable reg write
+          mem_WE <= 1'b0;								   // Still in read mode
+			 R_I	  <= 1'b0;									// Reg path
+          Rdest  <= dec_Rdest;							// Write dest reg
+          Rsrc   <= 4'b0;									// Unused
+          Opcode <= 8'hxx;									// ALU not used
+          Imm    <= 8'h00;									// Not used
+			 LSCntl <= 2'b1;
+			 ALU_MUX_Cntl <= 1'b1;							// reg write from memory
         end      
-                         */		
+                  	
 	  endcase
 	end
 	
