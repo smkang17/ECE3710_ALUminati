@@ -22,10 +22,10 @@ module top (
 	 
 	 // LSCntl MUX
     reg [15:0] mem_addr;
-    always @(LSCntl or PC_value or busA_out) begin
+    always @(LSCntl or PC_value or busB_out) begin
         case (LSCntl)
             1'b0: mem_addr = PC_value;               // instruction fetch
-            1'b1: mem_addr = busA_out;               // simulated reg value
+            1'b1: mem_addr = busB_out;               // simulated reg value
             default: mem_addr = 16'h0000;
         endcase
     end
@@ -86,7 +86,7 @@ module top (
 	 
 	 //b not used yet
 	 Bram uBram (
-        .data_a(busB_out),   	// data stored from Rsrc during store inst
+        .data_a(busA_out),   	// data stored from Rsrc during store inst
         .data_b(16'h0000),		
         .addr_a(mem_addr),    // instruction address = PC
         .addr_b(1'b0),

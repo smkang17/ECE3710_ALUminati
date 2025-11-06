@@ -93,32 +93,34 @@ module controlFSM (
 	  // safe defaults each cycle
 	  PCe    <= 1'b0;
 	  Ren    <= 1'b0;
-	  Rsrc   <= 4'bxxxx;
-	  Rdest  <= 4'bxxxx;
-	  R_I    <= 1'bx;
+	  Rsrc   <= 4'b0000;
+	  Rdest  <= 4'b0000;
+	  R_I    <= 1'b0;
 	  Opcode <= 8'h00;
 	  Imm    <= 8'h00;
 	  mem_WE     <= 1'b0;  // 1 for store at s3, else 0    
-	  LSCntl <= 2'b00;
+	  LSCntl <= 1'b0;
 	  ALU_MUX_Cntl <= 1'b0;
 
 	
 	  case (state)
 			S0_FETCH: begin
 				// latch raw instruction from memory
-				inst_reg <= inst;
 				
+				ALU_MUX_Cntl <= 1'b0;
+				LSCntl<= 1'b0;
 				PCe   <= 1'b0; 
 				Ren   <= 1'b0; // no write yet 
-				Rsrc  <= 4'bxxxx; 
-				Rdest <= 4'bxxxx; 
-				R_I   <= 1'bx; 
-				Opcode<= 8'hxx; 
-				Imm   <= 8'hxx;
+				Rsrc  <= 4'b0000; 
+				Rdest <= 4'b0000; 
+				R_I   <= 1'b0; 
+				Opcode<= 8'h00; 
+				Imm   <= 8'h00;
 				mem_WE     <= 1'b0;  
 			end
 	
 			S1_DECODE: begin
+				inst_reg <= inst;
 				PCe <= 1'b0;
 				Ren <= 1'b0;
 				mem_WE  <= 1'b0;
@@ -130,7 +132,7 @@ module controlFSM (
 					dec_Rdest  <= inst_reg[11:8];
 					dec_Rsrc   <= inst_reg[3:0];
 					dec_Imm      <= 8'h00;
-					dec_Opcode   <= 8'hxx;     // don't care for STORE
+					dec_Opcode   <= 8'h00;     // don't care for STORE
 					dec_is_cmp   <= 1'b0;
 					dec_is_nop   <= 1'b0;
 					dec_is_store <= 1'b1;
@@ -143,7 +145,7 @@ module controlFSM (
 					dec_Rsrc   <= inst_reg[3:0];
 					///// Not used in ISA; should use R_addr instead, dec_Rsrc <= inst_reg[3:0];
 					dec_Imm      <= 8'h00;
-					dec_Opcode   <= 8'hxx;     // don't care for LOAD
+					dec_Opcode   <= 8'h00;     // don't care for LOAD
 					dec_is_cmp   <= 1'b0;
 					dec_is_nop   <= 1'b0;
 					dec_is_store <= 1'b0;
@@ -196,13 +198,13 @@ module controlFSM (
 			//   addr_b <- RegA(out_busA) = Raddr
 			//   data_b <- RegB(out_busB) = Rsrc
 			//   we_b   <- WE (asserted high for this state)
-				PCe    <= 1'b1;                        // Increment PC after STORE is done
+				PCe    <= 1'b0;                        // Increment PC after STORE is done
 				Ren    <= 1'b0;                        // No register write during STORE
 				mem_WE <= 1'b1;                        // Enable memory write
 				R_I    <= 1'b0;                        // Keep register path (ALU not used)
 				Rdest  <= dec_Rdest;                   // ra_idx = Raddr (address register)
 				Rsrc   <= dec_Rsrc;                    // rb_idx = Rsrc (data register)
-				Opcode <= 8'hxx; 								// Don't care
+				Opcode <= 8'h00; 								// Don't care
 				Imm    <= 8'h00;								// Not used
 				LSCntl <= 1'b1;								// addr from busA (Rdest)
 				ALU_MUX_Cntl <= 1'b0;						// irrelevant
@@ -218,9 +220,9 @@ module controlFSM (
           R_I    <= 1'b0;									// Reg addressing
           Rdest  <= dec_Rdest;							// Dest reg for loaded data
           Rsrc   <= dec_Rsrc;								// Address reg
-          Opcode <= 8'hxx;									// ALU not used
+          Opcode <= 8'h00;									// ALU not used
           Imm    <= 8'h00;									// Not used
-			 LSCntl <= 2'b1;									// choose addr source
+			 LSCntl <= 1'b1;									// choose addr source
 			 ALU_MUX_Cntl <= 1'b0;							// still ALU path
         end
 
@@ -234,9 +236,9 @@ module controlFSM (
 			 R_I	  <= 1'b0;									// Reg path
           Rdest  <= dec_Rdest;							// Dest reg for loaded data
           Rsrc   <= dec_Rsrc;								// Write dest reg
-          Opcode <= 8'hxx;									// ALU not used
+          Opcode <= 8'h00;									// ALU not used
           Imm    <= 8'h00;							// Not used
-			 LSCntl <= 2'b1;
+			 LSCntl <= 1'b0;
 			 ALU_MUX_Cntl <= 1'b1;							// reg write from memory
         end      
                   	
