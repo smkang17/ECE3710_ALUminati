@@ -26,7 +26,10 @@ module controlFSM (
 	reg        dec_is_store;        
 	reg        dec_is_load;         
 	
+	
+	reg prev_mem_we, prev_LSCntl; //for ir_en
 	reg [15:0] inst_reg; //IR
+	wire ir_en;
 	
 	
 	// Wire declared for S1
@@ -74,7 +77,7 @@ module controlFSM (
 			state <= S0_FETCH;
 	  else begin
 			case (state)
-             S0_FETCH:  state <= S1_DECODE;
+             S0_FETCH:  state <= ir_en ? S1_DECODE : S0_FETCH; // <-- STALL until IR latched
              S1_DECODE : begin
                if (is_store)      state <= S3_STORE;
                else if (is_load)  state <= S4_LOAD;
@@ -88,7 +91,33 @@ module controlFSM (
 			endcase
 	  end
 	end
+	
+	
+	//--------- IR ------------------------
+	
+	//make sure the btis that will corrupt IR are not set
+	always @(posedge clk or posedge rst) begin
+	  if (rst) begin
+		 prev_mem_we  <= 1'b0;
+		 prev_LSCntl  <= 1'b0;
+	  end else begin
+		 prev_mem_we  <= mem_WE;
+		 prev_LSCntl  <= LSCntl;
+	  end
+	end
 
+   assign ir_en = (state == S0_FETCH) && !prev_mem_we && !prev_LSCntl; //IR only enable when no corruption (lscntl and mem_we corrupt)
+	
+	
+	always @(posedge clk or posedge rst) begin
+	  if (rst)        inst_reg <= 16'h0000;
+	  else if (ir_en) inst_reg <= inst;
+	end
+	//--------------------------------------
+	
+	
+	
+	
 	always @(posedge clk) begin
 	  // safe defaults each cycle
 	  PCe    <= 1'b0;
@@ -101,26 +130,25 @@ module controlFSM (
 	  mem_WE     <= 1'b0;  // 1 for store at s3, else 0    
 	  LSCntl <= 1'b0;
 	  ALU_MUX_Cntl <= 1'b0;
-
+	
 	
 	  case (state)
 			S0_FETCH: begin
 				// latch raw instruction from memory
-				
 				ALU_MUX_Cntl <= 1'b0;
-				LSCntl<= 1'b0;
-				PCe   <= 1'b0; 
-				Ren   <= 1'b0; // no write yet 
-				Rsrc  <= 4'b0000; 
-				Rdest <= 4'b0000; 
-				R_I   <= 1'b0; 
-				Opcode<= 8'h00; 
-				Imm   <= 8'h00;
-				mem_WE     <= 1'b0;  
+				LSCntl <= 1'b0;
+				PCe    <= 1'b0; 
+				Ren    <= 1'b0; // no write yet 
+				Rsrc   <= 4'b0000; 
+				Rdest  <= 4'b0000; 
+				R_I    <= 1'b0; 
+				Opcode <= 8'h00; 
+				Imm    <= 8'h00;
+				mem_WE <= 1'b0;  
 			end
 	
 			S1_DECODE: begin
-				inst_reg <= inst;
+
 				PCe <= 1'b0;
 				Ren <= 1'b0;
 				mem_WE  <= 1'b0;
@@ -198,7 +226,7 @@ module controlFSM (
 			//   addr_b <- RegA(out_busA) = Raddr
 			//   data_b <- RegB(out_busB) = Rsrc
 			//   we_b   <- WE (asserted high for this state)
-				PCe    <= 1'b0;                        // Increment PC after STORE is done
+				PCe    <= 1'b1;                        // Increment PC after STORE is done
 				Ren    <= 1'b0;                        // No register write during STORE
 				mem_WE <= 1'b1;                        // Enable memory write
 				R_I    <= 1'b0;                        // Keep register path (ALU not used)
