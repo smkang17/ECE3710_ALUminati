@@ -40,7 +40,7 @@ module lab4TB;
   end
 
  
-  wire [15:0] pc_value  = dut.uPC.pc_value;      
+  wire [15:0] PC_value  = dut.uPC.PC_value;      
   wire [15:0] inst_word = dut.uBram.q_a;         
   wire        Ren       = dut.uFSM.Ren;          
   wire [3:0]  Rdest     = dut.uFSM.Rdest;
@@ -87,19 +87,19 @@ module lab4TB;
 			 // ALU / I-type writeback
 			 if (state == 3'b010) begin
 				$display("R/I   EXECUTED | PC=%0d  IR=0x%04h | R0=0x%04h R1=0x%04h R2=0x%04h R3=0x%04h",
-							pc_value, InstR, R0_val, R1_val, R2_val, R3_val);
+							PC_value, InstR, R0_val, R1_val, R2_val, R3_val);
 			 end
 
 			 // LOAD writeback
 			 if (state == 3'b101) begin
 				$display("LOAD  EXECUTED | PC=%0d  IR=0x%04h | R0=0x%04h R1=0x%04h R2=0x%04h R3=0x%04h",
-							pc_value, InstR, R0_val, R1_val, R2_val, R3_val);
+							PC_value, InstR, R0_val, R1_val, R2_val, R3_val);
 			 end
 
 			 // STORE (memory side-effect)
 			 if (state == 3'b011) begin
 				$display("STORE EXECUTED | PC=%0d  IR=0x%04h | R0=0x%04h R1=0x%04h R2=0x%04h R3=0x%04h",
-							pc_value, InstR, R0_val, R1_val, R2_val, R3_val);
+							PC_value, InstR, R0_val, R1_val, R2_val, R3_val);
 			 end
 		  end
 		end
@@ -122,7 +122,7 @@ module lab4TB;
 
 	initial begin
 	@(negedge rst);
-	prev_pc = pc_value; // baseline
+	prev_pc = PC_value; // baseline
 	end
 
 
@@ -130,9 +130,9 @@ module lab4TB;
 	// Count on PC change events
 	always @(posedge clk) begin
 		if (!rst) begin
-			if (pc_value !== prev_pc) begin
+			if (PC_value !== prev_pc) begin
 			instr_count <= instr_count + 1;
-			prev_pc <= pc_value;
+			prev_pc <= PC_value;
 			//$display("t=%0t | INSTR #%0d fetched at PC=%0d", $time, instr_count, pc_value);
 				if (instr_count == 15) begin
 					@(posedge clk); // settle any writeback
