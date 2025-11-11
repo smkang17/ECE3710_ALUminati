@@ -46,7 +46,7 @@ module top (
 	 
 	 // PC_mux
 	 reg [15:0] PC_next;
-	 always @(Pce or PCsrc) begin
+	always @(PCe or PCsrc) begin
 		case (PCsrc)
 			2'b00: PC_next = PC_value + 16'h0001;
 			2'b01: PC_next = PC_value + branch_disp;
@@ -116,3 +116,4 @@ module top (
     );
 
 endmodule
+
