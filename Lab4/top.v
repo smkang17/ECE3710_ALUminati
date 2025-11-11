@@ -46,7 +46,7 @@ module top (
 	 
 	 // PC_mux
 	 reg [15:0] PC_next;
-	always @(PCe or PCsrc) begin
+	always @(PCsrc or branch_disp or busB_out or PC_value) begin
 		case (PCsrc)
 			2'b00: PC_next = PC_value + 16'h0001;
 			2'b01: PC_next = PC_value + branch_disp;
@@ -71,7 +71,7 @@ module top (
         .inst(mem_dout),
 		.flags(flags),
         .PCe(PCe),
-		  .PCsrc(Pcsrc),
+		.PCsrc(PCsrc),
 		  .branch_disp(branch_disp),
         .Ren(Ren),
         .Rsrc(Rsrc),
@@ -116,5 +116,6 @@ module top (
     );
 
 endmodule
+
 
 
