@@ -61,7 +61,7 @@ module top (
         .clk(clk),
         .rst(rst),
         .PCe(PCe),
-		  .PC_in(PC_next)
+		.PC_in(PC_next),
         .PC_value(PC_value)
     );
 
@@ -69,7 +69,7 @@ module top (
         .clk(clk),
         .rst(rst),
         .inst(mem_dout),
-		  .flags(flags)
+		.flags(flags),
         .PCe(PCe),
 		  .PCsrc(Pcsrc),
 		  .branch_disp(branch_disp),
@@ -116,4 +116,5 @@ module top (
     );
 
 endmodule
+
 
