@@ -44,16 +44,25 @@ module top (
         endcase
     end
 	 
+	 // PC_mux
+	 reg [15:0] PC_next;
+	 always @(Pce or PCsrc) begin
+		case (PCsrc)
+			2'b00: PC_next = PC_value + 16'h0001;
+			2'b01: PC_next = PC_value + branch_disp;
+			2'b10: PC_next = busB_out;
+			default: PC_next = PC_value + 16'h0001;
+		endcase
+	end
+	 
 	 
 	 
     pc uPC (
         .clk(clk),
         .rst(rst),
         .PCe(PCe),
-		  .PCsrc(PCsrc),
-		  .branch_disp(branch_disp),
-		  .Rtarget(busB_out),
-        .pc_value(PC_value)
+		  .PC_in(PC_next)
+        .PC_value(PC_value)
     );
 
     controlFSM uFSM (
