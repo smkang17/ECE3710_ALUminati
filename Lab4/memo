@@ -272,8 +272,8 @@ module controlFSM (
                 else if (is_branch || is_jump) begin
                     dec_R_I      <= 1'b0;
                     dec_Rdest    <= 4'h0;
-                    dec_Rsrc     <= 4'h0;
-                    dec_Imm      <= 8'h00;
+                    dec_Rsrc   <= (is_jump) ? inst_reg[3:0] : 4'h0; // prepare jump target reg
+                    dec_Imm    <= inst_reg[7:0];                   // save disp for branch
                     dec_Opcode   <= 8'h00;
                     dec_is_cmp   <= 1'b0;
                     dec_is_nop   <= 1'b0;
@@ -298,10 +298,23 @@ module controlFSM (
 			end
 
 			S2_EXECUTE: begin
+				 PCe    <= 1'b1;                        // Enable PC increment during the execute stage
+				 PCsrc  <= 2'b00;          // PC+1
+				 R_I    <= dec_R_I;                     // Select between register or immediate operand (R/I type)
+				 Rdest  <= dec_Rdest;                   // Destination register index (write-back target)
+				 Rsrc   <= dec_Rsrc;                    // Source register index (used if R-type)
+				 Imm    <= dec_Imm;                     // Immediate value (used if I-type)
+				 Opcode <= dec_Opcode;                  // ALU operation code (determines the operation type)
+				 branch_disp <= {{8{dec_Imm[7]}}, dec_Imm}; // sign-extend disp
+				 
+				 // Enable register write unless the instruction is CMP/CMPI or NOP
+				 Ren <= (dec_is_cmp || dec_is_nop) ? 1'b0 : 1'b1; 
+				 
+				 ALU_MUX_Cntl <= 1'b0;						 // writeback from ALU
 			
-			
-			if (is_branch) begin
-                    // Bcond disp: cond=inst_reg[11:8], disp=inst_reg[7:0]
+				 if (is_branch) begin
+                    Ren <= 1'b0;
+						  // Bcond disp: cond=inst_reg[11:8], disp=inst_reg[7:0]
                     if (cond_true(inst_reg[11:8], flags)) begin
                         PCe         <= 1'b1;
                         PCsrc       <= 2'b01; // PC + disp
@@ -312,7 +325,8 @@ module controlFSM (
                     end
                     // no Ren/mem_WE
                 end
-                else if (is_jump) begin
+              if (is_jump) begin
+				        Ren <= 1'b0;
                     // Jcond Rtarget: cond=inst_reg[11:8], Rtarget=inst_reg[3:0]
                     if (cond_true(inst_reg[11:8], flags)) begin
                         PCe   <= 1'b1;
@@ -323,24 +337,7 @@ module controlFSM (
                         PCsrc <= 2'b00;       // PC + 1
                     end
                     // no Ren/mem_WE
-                end
-					 
-					 
-             else begin
-				 PCe    <= 1'b1;                        // Enable PC increment during the execute stage
-				 PCsrc  <= 2'b00;          // PC+1
-				 R_I    <= dec_R_I;                     // Select between register or immediate operand (R/I type)
-				 Rdest  <= dec_Rdest;                   // Destination register index (write-back target)
-				 Rsrc   <= dec_Rsrc;                    // Source register index (used if R-type)
-				 Imm    <= dec_Imm;                     // Immediate value (used if I-type)
-				 Opcode <= dec_Opcode;                  // ALU operation code (determines the operation type)
-
-				 // Enable register write unless the instruction is CMP/CMPI or NOP
-				 Ren <= (dec_is_cmp || dec_is_nop) ? 1'b0 : 1'b1; 
-				 
-				 ALU_MUX_Cntl <= 1'b0;						 // writeback from ALU
-			end
-			
+                end			
 			end
 			
 			
