@@ -44,6 +44,8 @@ module controlFSM (
    reg [3:0]  dec_cond;      // cond field
    reg [7:0]  dec_disp8;     // Bcond disp (8-bit)
    reg [3:0]  dec_jtarget;   // Jcond Rtarget (reg index)
+	reg 		  branch_reset;  // set when branch is taken to fix bug
+	reg 		  next_branch_reset;
 	
 	
 	//for IR 
@@ -176,11 +178,28 @@ module controlFSM (
 		&& !prev_mem_we      //ensure nothing is writing to bram 
 		&& !prev_LSCntl;		//ensure address is from PC
 	
-	
+	// Changed to fix branch bug
 	always @(posedge clk or posedge rst) begin
-	  if (rst)        inst_reg <= 16'h0000;
-	  else if (ir_en) inst_reg <= inst;
+	  if (rst) begin
+			inst_reg <= 16'h0000;
+			branch_reset <= 1'b0;
+	  end else begin
+			// If we are fetching but previous instruction was a branch,
+			// write a NOP instead of the memory output
+			if (ir_en) begin
+				if (branch_reset) begin
+					inst_reg	<= 16'h0000;
+					branch_reset <= 1'b0;
+				end else begin
+					inst_reg <= inst;
+					branch_reset <= next_branch_reset;	// latch new request
+				end
+			end else begin
+				branch_reset <= branch_reset | next_branch_reset;
+			end
+		end
 	end
+				
 	//---------------------------------------------------------------------------------
 	
 	
@@ -192,8 +211,8 @@ module controlFSM (
 	  flags_en <= 1'b0;
 	  
 	  PCsrc         <= 2'b00;  
-     branch_disp   <= 16'h0000;  
-				
+     branch_disp   <= 16'h0000;
+	  next_branch_reset  <= 1'b0; 
 				
 	  Ren    <= 1'b0;
 	  Rsrc   <= 4'b0000;
@@ -205,7 +224,6 @@ module controlFSM (
 	  LSCntl <= 1'b0;
 	  ALU_MUX_Cntl <= 1'b0;
 
-	
 	
 	  case (state)
 			S0_FETCH: begin
@@ -316,6 +334,7 @@ module controlFSM (
 				 Opcode <= dec_Opcode;                  // ALU operation code (determines the operation type)
 				 branch_disp <= {{8{dec_Imm[7]}}, dec_Imm}; // sign-extend disp
 				 flags_en <= 1'b1;
+				 next_branch_reset  <= 1'b0;
 				 
 				 // Enable register write unless the instruction is CMP/CMPI or NOP
 				 Ren <= (dec_is_cmp || dec_is_nop) ? 1'b0 : 1'b1; 
@@ -329,6 +348,7 @@ module controlFSM (
                         PCe         <= 1'b1;
                         PCsrc       <= 2'b01; // PC + disp
                         branch_disp <= {{8{inst_reg[7]}}, inst_reg[7:0]};
+								next_branch_reset <= 1'b1;
                     end else begin
                         PCe   <= 1'b1;
                         PCsrc <= 2'b00;       // PC + 1
@@ -342,6 +362,7 @@ module controlFSM (
                         PCe   <= 1'b1;
                         PCsrc <= 2'b10;       // Rtarget
                         Rsrc  <= inst_reg[3:0];          // rb_idx=Rsrc -> busB_out = Rtarget1;
+								next_branch_reset <= 1'b1;
                     end else begin
                         PCe   <= 1'b1;
                         PCsrc <= 2'b00;       // PC + 1
