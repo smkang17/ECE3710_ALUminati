@@ -25,7 +25,7 @@ module Bram #(
 		// load from file
 		// $readmemh: reads a text file where numbers are written in hexadecimal
 		// loads values into memory (ram)
-		$readmemh("LSmem.hex", ram);
+		$readmemh("JBmem.hex", ram);
 	end
 
 	// Port A 

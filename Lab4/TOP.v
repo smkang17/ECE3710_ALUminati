@@ -19,6 +19,10 @@ module top (
 	 wire [15:0] busB_out;
 	 wire	    	 LSCntl; 
 	 wire 		 ALU_MUX_Cntl; 
+	 wire        flags_en;
+	 
+	 wire	[1:0]	 PCsrc;
+	 wire	[15:0] branch_disp;
 	 
 	 // LSCntl MUX
     reg [15:0] mem_addr;
@@ -41,20 +45,35 @@ module top (
         endcase
     end
 	 
+	 // PC_mux
+	 reg [15:0] PC_next;
+	always @(PCsrc or branch_disp or busB_out or PC_value) begin
+		case (PCsrc)
+			2'b00: PC_next = PC_value + 16'h0001;
+			2'b01: PC_next = PC_value + branch_disp;
+			2'b10: PC_next = busB_out;
+			default: PC_next = PC_value + 16'h0001;
+		endcase
+	end
+	 
 	 
 	 
     pc uPC (
         .clk(clk),
         .rst(rst),
         .PCe(PCe),
-        .pc_value(PC_value)
+		.PC_in(PC_next),
+        .PC_value(PC_value)
     );
 
     controlFSM uFSM (
         .clk(clk),
         .rst(rst),
         .inst(mem_dout),
+		  .flags(flags),
         .PCe(PCe),
+		  .PCsrc(PCsrc),
+		  .branch_disp(branch_disp),
         .Ren(Ren),
         .Rsrc(Rsrc),
         .Rdest(Rdest),
@@ -63,7 +82,8 @@ module top (
         .Imm(Imm),
 		  .mem_WE(mem_WE),
 		  .LSCntl(LSCntl),
-		  .ALU_MUX_Cntl(ALU_MUX_Cntl)
+		  .ALU_MUX_Cntl(ALU_MUX_Cntl),
+		  .flags_en(flags_en)
     );
 
     RegALU uRegALU (
@@ -80,7 +100,8 @@ module top (
         .flags(flags),
 		  .busA_out(busA_out),
 		  .busB_out(busB_out),
-		  .wb_data(wb_data)
+		  .wb_data(wb_data),
+		  .flags_en(flags_en)
     );
 
 	 
@@ -98,3 +119,5 @@ module top (
     );
 
 endmodule
+
+

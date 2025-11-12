@@ -57,6 +57,7 @@ module lab4TB;
   wire [15:0] R3_val    = dut.uRegALU.uRegBank.reg_data[3];
   wire [3:0] state      = dut.uFSM.state;
   wire [15:0] wb        = dut.uRegALU.wb_data;
+  wire [4:0] flags      = dut.uRegALU.flags;
 
 
 
@@ -86,20 +87,20 @@ module lab4TB;
 		  if (!rst) begin
 			 // ALU / I-type writeback
 			 if (state == 3'b010) begin
-				$display("R/I   EXECUTED | PC=%0d  IR=0x%04h | R0=0x%04h R1=0x%04h R2=0x%04h R3=0x%04h",
-							PC_value, InstR, R0_val, R1_val, R2_val, R3_val);
+				$display("R/I   EXECUTED | PC=%0d  IR=0x%04h | flags [N,Z,F,L,C] =0x%05b | R0=0x%04h R1=0x%04h R2=0x%04h R3=0x%04h",
+							PC_value, InstR, flags, R0_val, R1_val, R2_val, R3_val);
 			 end
 
 			 // LOAD writeback
 			 if (state == 3'b101) begin
-				$display("LOAD  EXECUTED | PC=%0d  IR=0x%04h | R0=0x%04h R1=0x%04h R2=0x%04h R3=0x%04h",
-							PC_value, InstR, R0_val, R1_val, R2_val, R3_val);
+				$display("LOAD  EXECUTED | PC=%0d  IR=0x%04h | flags [N,Z,F,L,C] =0x%05b | R0=0x%04h R1=0x%04h R2=0x%04h R3=0x%04h",
+							PC_value, InstR, flags, R0_val, R1_val, R2_val, R3_val);
 			 end
 
 			 // STORE (memory side-effect)
 			 if (state == 3'b011) begin
-				$display("STORE EXECUTED | PC=%0d  IR=0x%04h | R0=0x%04h R1=0x%04h R2=0x%04h R3=0x%04h",
-							PC_value, InstR, R0_val, R1_val, R2_val, R3_val);
+				$display("STORE EXECUTED | PC=%0d  IR=0x%04h | flags [N,Z,F,L,C] =0x%05b | R0=0x%04h R1=0x%04h R2=0x%04h R3=0x%04h",
+							PC_value, InstR, flags, R0_val, R1_val, R2_val, R3_val);
 			 end
 		  end
 		end
