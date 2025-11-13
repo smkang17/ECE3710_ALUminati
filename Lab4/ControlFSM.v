@@ -187,7 +187,7 @@ module controlFSM (
 			// If we are fetching but previous instruction was a branch,
 			// write a NOP instead of the memory output
 			if (ir_en) begin
-				if (branch_reset) begin
+				if (branch_reset || next_branch_reset) begin
 					inst_reg	<= 16'h0000;
 					branch_reset <= 1'b0;
 				end else begin
