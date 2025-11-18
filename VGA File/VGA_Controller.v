@@ -11,6 +11,20 @@ module VGA_Controller (
 );
 	// This module controls the counters
 	
+	/*
+		Horizontal timing:
+			0 -> 639: 		visible pixels
+			640 -> 655: 	front porch
+			656 -> 751: 	sync pulse (hSync low)
+			752 -> 799: 	back porch
+			
+		Vertical timing:
+			0 -> 479:		visible lines
+			480 -> 489:		front porch
+			490 -> 491:		sync pulse (vSync low)
+			492 -> 524:		back porch
+	*/
+	
 
 	// 25 MHz Enable Pulse for counter
 	reg [1:0] divider = 0;
