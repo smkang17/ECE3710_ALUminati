@@ -1,1 +1,190 @@
 
+`timescale 1ns/1ps
+
+module tb_PS2;
+
+    // DUT 포트들
+    reg  CLOCK_50;
+    reg  KEY0;         // active-low reset
+    reg  PS2_CLK;
+    reg  PS2_DAT;
+
+
+
+    // DUT 인스턴스
+    PS2 dut (
+        .CLOCK_50 (CLOCK_50),
+        .KEY0     (KEY0),
+        .PS2_CLK  (PS2_CLK),
+        .PS2_DAT  (PS2_DAT)
+
+    );
+
+    // ============================================================
+    // 50MHz 시스템 클럭 생성 (20ns period)
+    // ============================================================
+    initial begin
+        CLOCK_50 = 1'b0;
+        forever #10 CLOCK_50 = ~CLOCK_50;  // 20ns period
+    end
+
+    // ============================================================
+    // PS/2 CLK/DATA 초기값 (idle: 둘 다 1)
+    // ============================================================
+    initial begin
+        PS2_CLK = 1'b1;
+        PS2_DAT = 1'b1;
+    end
+
+    // ============================================================
+    // Reset 시퀀스
+    // ============================================================
+    initial begin
+        KEY0 = 1'b0;      // reset active (low)
+        #200;
+        KEY0 = 1'b1;      // release reset
+    end
+
+    // ============================================================
+    // PS/2 프레임 전송 task
+    // - start(0), 8비트 LSB-first, parity(odd), stop(1) 순서
+    // - ps2_keyboard 모듈이 ps2_clk falling edge에서 샘플링하므로
+    //   각 비트마다 1->0 falling 을 만들어 줌
+    // ============================================================
+
+    // PS/2 클럭 half-period (시뮬레이션용)
+    // 예: 5us -> 약 100kHz, 충분히 느려서 50MHz에서 잘 샘플링됨
+    localparam integer PS2_HALF = 5000;   // 5000ns = 5us
+
+    task send_ps2_byte(input [7:0] code);
+        integer i;
+        reg parity_bit;
+        reg [10:0] frame;
+    begin
+        // parity bit 계산 (odd parity)
+        // data 비트의 1 개수 + parity_bit = 홀수
+        parity_bit = ~(^code);   // ^code = 1이면 홀수, 0이면 짝수
+
+        // frame[0] : start(0)
+        // frame[1]..[8] : data bits (d0..d7)
+        // frame[9] : parity
+        // frame[10]: stop(1)
+        frame[0]  = 1'b0;           // start
+        frame[8:1]= code[7:0];      // LSB부터 차례로 보낼 거라 아래에서 조심
+        frame[9]  = parity_bit;
+        frame[10] = 1'b1;           // stop
+
+        // idle
+        PS2_DAT = 1'b1;
+        PS2_CLK = 1'b1;
+        #(PS2_HALF*2);
+
+        // 11비트를 순서대로 전송
+        for (i = 0; i < 11; i = i + 1) begin
+            // 데이터 세팅 (LSB-first)
+            if (i == 0)
+                PS2_DAT = frame[0];                // start
+            else if (i >= 1 && i <= 8)
+                PS2_DAT = code[i-1];              // d0..d7
+            else if (i == 9)
+                PS2_DAT = parity_bit;             // parity
+            else
+                PS2_DAT = 1'b1;                   // stop
+
+            // 클럭 사이클: HIGH -> LOW
+            PS2_CLK = 1'b1;
+            #PS2_HALF;
+            PS2_CLK = 1'b0;   // falling edge에서 샘플링
+            #PS2_HALF;
+        end
+
+        // 다시 idle
+        PS2_DAT = 1'b1;
+        PS2_CLK = 1'b1;
+        #(PS2_HALF*3);
+    end
+    endtask
+
+    // Make 코드 전송 편의 task
+    task send_make(input [7:0] sc);
+    begin
+        send_ps2_byte(sc);
+    end
+    endtask
+
+    // Break 코드 (F0 + sc) 전송 task
+    task send_break(input [7:0] sc);
+    begin
+        send_ps2_byte(8'hF0);
+        send_ps2_byte(sc);
+    end
+    endtask
+
+    // ============================================================
+    // 스캔코드 상수 (Set 2 기준 — 너가 쓴 것과 맞는지 확인!)
+    // ============================================================
+    localparam [7:0] SC_W     = 8'h1D;
+    localparam [7:0] SC_A     = 8'h1C;
+    localparam [7:0] SC_S     = 8'h1B;
+    localparam [7:0] SC_D     = 8'h23;
+    localparam [7:0] SC_R     = 8'h2D;
+    localparam [7:0] SC_SPACE = 8'h29;
+
+
+        // ============================================================
+    // 실제 테스트 시퀀스
+    // ============================================================
+    initial begin
+        // reset 끝날 때까지 기다리기
+        #1000;
+
+        // 1) Space make: 게임 시작 (STOP -> RUN)
+        $display("\n=== 1) SPACE (start) ===");
+        send_make(SC_SPACE);
+        send_break(SC_SPACE);
+
+        #100000;
+
+        // 2) W make: 방향 UP으로 바꿔보기
+        $display("\n=== 2) W (dir UP) ===");
+        send_make(SC_W);
+        send_break(SC_W);
+
+        #100000;
+
+        // 3) 다시 Space: RUN -> STOP (일시정지)
+        $display("\n=== 3) SPACE (stop) ===");
+        send_make(SC_SPACE);
+        send_break(SC_SPACE);
+
+        #100000;
+
+        // 4) STOP 상태에서 R: reset pulse 나오는지
+        $display("\n=== 4) R (reset while STOP) ===");
+        send_make(SC_R);
+        send_break(SC_R);
+
+        #100000;
+
+        // 5) 다시 SPACE로 시작 후, W로 움직여서 game_over 발생 유도
+        $display("\n=== 5) SPACE (start) + W (trigger game_over in stub) ===");
+        send_make(SC_SPACE);
+        send_break(SC_SPACE);
+        #100000;
+
+        send_make(SC_W);
+        send_break(SC_W);
+        #200000;
+
+        // 6) game_over 상태(실제로는 STOP 상태)에서 R로 리셋
+        $display("\n=== 6) R (reset while game_over/STOP) ===");
+        send_make(SC_R);
+        send_break(SC_R);
+
+        #200000;
+
+        $display("\n=== Simulation done ===");
+        $finish;
+    end
+
+endmodule
