@@ -1,190 +1,152 @@
+// PS2.v
+// - PS/2 키보드에서 스캔코드(1바이트)를 받는다.
+// - 마지막으로 받은 스캔코드를 LEDR/HEX로 보여준다.
+// - key_decoder로 WASD/Space/R를 펄스로 만들고
+// - game_controller로 방향/시작/정지/리셋 FSM을 돌린다.
 
-`timescale 1ns/1ps
+module PS2 (
+    input  wire CLOCK_50,
+    input  wire KEY0,        // 보드 리셋 버튼 (active-low)
+    input  wire PS2_CLK,
+    input  wire PS2_DAT,
 
-module tb_PS2;
+    // 보드에 직접 연결할 출력들
+    output wire [9:0] LEDR,  // 하위 8bit: 마지막 스캔코드
+    output wire [6:0] HEX0,  // 스캔코드의 낮은 nibble (16진수 한 자리)
+    output wire [6:0] HEX1   // 스캔코드의 높은 nibble (16진수 한 자리)
+);
 
-    // DUT 포트들
-    reg  CLOCK_50;
-    reg  KEY0;         // active-low reset
-    reg  PS2_CLK;
-    reg  PS2_DAT;
+    // ============================================================
+    // Reset 신호 (active-high)
+    // ============================================================
+    wire rst = ~KEY0;
 
+    // ============================================================
+    // 1) PS/2 스캔코드 받기
+    // ============================================================
+    wire [7:0] scan_code;
+    wire       scan_ready;
 
+    // ps2_keyboard: PS/2 프로토콜을 읽어서 8비트 코드 + ready 펄스 생성
+    ps2_keyboard u_ps2_kbd (
+        .clk        (CLOCK_50),
+        .rst        (rst),
+        .ps2_clk    (PS2_CLK),
+        .ps2_data   (PS2_DAT),
+        .data_out   (scan_code),
+        .data_ready (scan_ready)
+    );
 
-    // DUT 인스턴스
-    PS2 dut (
-        .CLOCK_50 (CLOCK_50),
-        .KEY0     (KEY0),
-        .PS2_CLK  (PS2_CLK),
-        .PS2_DAT  (PS2_DAT)
+    // 최근에 들어온 스캔코드를 저장하는 레지스터
+    reg [7:0] last_code;
+    always @(posedge CLOCK_50 or posedge rst) begin
+        if (rst)
+            last_code <= 8'h00;
+        else if (scan_ready)
+            last_code <= scan_code;
+    end
 
+    // ============================================================
+    // 2) LED / HEX 디스플레이 출력
+    // ============================================================
+
+    // LEDR[7:0] 에 raw 스캔코드 표시 (bit = 1이면 LED 켜짐)
+    assign LEDR[7:0] = last_code;
+    // 나머지 LEDR[9:8] 은 지금은 사용 안 함
+    assign LEDR[9:8] = 2'b00;
+
+    // 7-seg 에도 16진수 두 자리로 표시
+    // 예: W 누르면 스캔코드 0x1D → HEX1 = 1, HEX0 = d
+    hex7seg u_hex0 (
+        .in  (last_code[3:0]),   // low nibble
+        .out (HEX0)
+    );
+
+    hex7seg u_hex1 (
+        .in  (last_code[7:4]),   // high nibble
+        .out (HEX1)
     );
 
     // ============================================================
-    // 50MHz 시스템 클럭 생성 (20ns period)
+    // 3) key_decoder — WASD / Space / R 를 1클럭 펄스로
     // ============================================================
-    initial begin
-        CLOCK_50 = 1'b0;
-        forever #10 CLOCK_50 = ~CLOCK_50;  // 20ns period
+    wire w_press, a_press, s_press, d_press;
+    wire space_press, r_press;
+
+    key_decoder u_dec (
+        .clk         (CLOCK_50),
+        .rst         (rst),
+        .data_in     (scan_code),
+        .data_ready  (scan_ready),
+
+        .w_press     (w_press),
+        .a_press     (a_press),
+        .s_press     (s_press),
+        .d_press     (d_press),
+        .space_press (space_press),
+        .r_press     (r_press)
+    );
+
+    // ============================================================
+    // 4) game_controller — 방향 + start/stop/reset FSM
+    // ============================================================
+
+    wire [2:0] dir;
+    wire       game_run;
+    wire       game_reset_pulse;
+
+    // 아직 진짜 게임 코어가 없으니, game_over 는 0으로 고정
+    wire game_over = 1'b0;
+
+    game_controller u_gc (
+        .clk              (CLOCK_50),
+        .rst              (rst),
+
+        .w_press          (w_press),
+        .a_press          (a_press),
+        .s_press          (s_press),
+        .d_press          (d_press),
+        .space_press      (space_press),
+        .r_press          (r_press),
+
+        .game_over        (game_over),
+
+        .dir              (dir),
+        .game_run         (game_run),
+        .game_reset_pulse (game_reset_pulse)
+    );
+
+endmodule
+
+
+// ==========================================================================
+// hex7seg — DE1-SoC용 7-세그 헥사 디코더 (active-low)
+// ==========================================================================
+
+module hex7seg (
+    input  wire [3:0] in,
+    output reg  [6:0] out
+);
+    always @* begin
+        //        gfedcba  (DE1-SoC 기본 예제와 동일한 패턴)
+        case (in)
+            4'h0: out = 7'b1000000;
+            4'h1: out = 7'b1111001;
+            4'h2: out = 7'b0100100;
+            4'h3: out = 7'b0110000;
+            4'h4: out = 7'b0011001;
+            4'h5: out = 7'b0010010;
+            4'h6: out = 7'b0000010;
+            4'h7: out = 7'b1111000;
+            4'h8: out = 7'b0000000;
+            4'h9: out = 7'b0010000;
+            4'hA: out = 7'b0001000; // A
+            4'hB: out = 7'b0000011; // b
+            4'hC: out = 7'b1000110; // C
+            4'hD: out = 7'b0100001; // d
+            4'hE: out = 7'b0000110; // E
+            4'hF: out = 7'b0001110; // F
+            default: out = 7'b1111111;
+        endcase
     end
-
-    // ============================================================
-    // PS/2 CLK/DATA 초기값 (idle: 둘 다 1)
-    // ============================================================
-    initial begin
-        PS2_CLK = 1'b1;
-        PS2_DAT = 1'b1;
-    end
-
-    // ============================================================
-    // Reset 시퀀스
-    // ============================================================
-    initial begin
-        KEY0 = 1'b0;      // reset active (low)
-        #200;
-        KEY0 = 1'b1;      // release reset
-    end
-
-    // ============================================================
-    // PS/2 프레임 전송 task
-    // - start(0), 8비트 LSB-first, parity(odd), stop(1) 순서
-    // - ps2_keyboard 모듈이 ps2_clk falling edge에서 샘플링하므로
-    //   각 비트마다 1->0 falling 을 만들어 줌
-    // ============================================================
-
-    // PS/2 클럭 half-period (시뮬레이션용)
-    // 예: 5us -> 약 100kHz, 충분히 느려서 50MHz에서 잘 샘플링됨
-    localparam integer PS2_HALF = 5000;   // 5000ns = 5us
-
-    task send_ps2_byte(input [7:0] code);
-        integer i;
-        reg parity_bit;
-        reg [10:0] frame;
-    begin
-        // parity bit 계산 (odd parity)
-        // data 비트의 1 개수 + parity_bit = 홀수
-        parity_bit = ~(^code);   // ^code = 1이면 홀수, 0이면 짝수
-
-        // frame[0] : start(0)
-        // frame[1]..[8] : data bits (d0..d7)
-        // frame[9] : parity
-        // frame[10]: stop(1)
-        frame[0]  = 1'b0;           // start
-        frame[8:1]= code[7:0];      // LSB부터 차례로 보낼 거라 아래에서 조심
-        frame[9]  = parity_bit;
-        frame[10] = 1'b1;           // stop
-
-        // idle
-        PS2_DAT = 1'b1;
-        PS2_CLK = 1'b1;
-        #(PS2_HALF*2);
-
-        // 11비트를 순서대로 전송
-        for (i = 0; i < 11; i = i + 1) begin
-            // 데이터 세팅 (LSB-first)
-            if (i == 0)
-                PS2_DAT = frame[0];                // start
-            else if (i >= 1 && i <= 8)
-                PS2_DAT = code[i-1];              // d0..d7
-            else if (i == 9)
-                PS2_DAT = parity_bit;             // parity
-            else
-                PS2_DAT = 1'b1;                   // stop
-
-            // 클럭 사이클: HIGH -> LOW
-            PS2_CLK = 1'b1;
-            #PS2_HALF;
-            PS2_CLK = 1'b0;   // falling edge에서 샘플링
-            #PS2_HALF;
-        end
-
-        // 다시 idle
-        PS2_DAT = 1'b1;
-        PS2_CLK = 1'b1;
-        #(PS2_HALF*3);
-    end
-    endtask
-
-    // Make 코드 전송 편의 task
-    task send_make(input [7:0] sc);
-    begin
-        send_ps2_byte(sc);
-    end
-    endtask
-
-    // Break 코드 (F0 + sc) 전송 task
-    task send_break(input [7:0] sc);
-    begin
-        send_ps2_byte(8'hF0);
-        send_ps2_byte(sc);
-    end
-    endtask
-
-    // ============================================================
-    // 스캔코드 상수 (Set 2 기준 — 너가 쓴 것과 맞는지 확인!)
-    // ============================================================
-    localparam [7:0] SC_W     = 8'h1D;
-    localparam [7:0] SC_A     = 8'h1C;
-    localparam [7:0] SC_S     = 8'h1B;
-    localparam [7:0] SC_D     = 8'h23;
-    localparam [7:0] SC_R     = 8'h2D;
-    localparam [7:0] SC_SPACE = 8'h29;
-
-
-        // ============================================================
-    // 실제 테스트 시퀀스
-    // ============================================================
-    initial begin
-        // reset 끝날 때까지 기다리기
-        #1000;
-
-        // 1) Space make: 게임 시작 (STOP -> RUN)
-        $display("\n=== 1) SPACE (start) ===");
-        send_make(SC_SPACE);
-        send_break(SC_SPACE);
-
-        #100000;
-
-        // 2) W make: 방향 UP으로 바꿔보기
-        $display("\n=== 2) W (dir UP) ===");
-        send_make(SC_W);
-        send_break(SC_W);
-
-        #100000;
-
-        // 3) 다시 Space: RUN -> STOP (일시정지)
-        $display("\n=== 3) SPACE (stop) ===");
-        send_make(SC_SPACE);
-        send_break(SC_SPACE);
-
-        #100000;
-
-        // 4) STOP 상태에서 R: reset pulse 나오는지
-        $display("\n=== 4) R (reset while STOP) ===");
-        send_make(SC_R);
-        send_break(SC_R);
-
-        #100000;
-
-        // 5) 다시 SPACE로 시작 후, W로 움직여서 game_over 발생 유도
-        $display("\n=== 5) SPACE (start) + W (trigger game_over in stub) ===");
-        send_make(SC_SPACE);
-        send_break(SC_SPACE);
-        #100000;
-
-        send_make(SC_W);
-        send_break(SC_W);
-        #200000;
-
-        // 6) game_over 상태(실제로는 STOP 상태)에서 R로 리셋
-        $display("\n=== 6) R (reset while game_over/STOP) ===");
-        send_make(SC_R);
-        send_break(SC_R);
-
-        #200000;
-
-        $display("\n=== Simulation done ===");
-        $finish;
-    end
-
 endmodule
