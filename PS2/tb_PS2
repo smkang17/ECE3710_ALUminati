@@ -1,0 +1,201 @@
+`timescale 1ns/1ps
+
+module tb_PS2;
+
+    // Assume 50MHz clock (20ns period)
+    reg clk = 0;
+    always #10 clk = ~clk;
+
+    reg rst;
+
+    reg  [7:0] data_in;
+    reg        data_ready;
+
+    wire w_press, a_press, s_press, d_press;
+    wire space_press, r_press;
+
+    // DUT
+    key_decoder dut (
+        .clk        (clk),
+        .rst        (rst),
+        .data_in    (data_in),
+        .data_ready (data_ready),
+        .w_press    (w_press),
+        .a_press    (a_press),
+        .s_press    (s_press),
+        .d_press    (d_press),
+        .space_press(space_press),
+        .r_press    (r_press)
+    );
+
+    // Scan code constants (Set 2)
+    localparam [7:0] SC_F0    = 8'hF0;
+    localparam [7:0] SC_W     = 8'h1D;
+    localparam [7:0] SC_A     = 8'h1C;
+    localparam [7:0] SC_S     = 8'h1B;
+    localparam [7:0] SC_D     = 8'h23;
+    localparam [7:0] SC_SPACE = 8'h29;
+    localparam [7:0] SC_R     = 8'h2D;
+
+    // === Common tasks ===
+
+    // Send one scan code (data_in + data_ready pulse)
+    task send_code(input [7:0] code);
+    begin
+        @(posedge clk);
+        data_in    <= code;
+        data_ready <= 1'b1;
+
+        @(posedge clk);
+        data_ready <= 1'b0;
+    end
+    endtask
+
+    // Send "make" code (key press)
+    task send_make(input [7:0] sc);
+    begin
+        send_code(sc);
+    end
+    endtask
+
+    // Send "break" code (F0 + scan code)
+    task send_break(input [7:0] sc);
+    begin
+        send_code(SC_F0);
+        send_code(sc);
+    end
+    endtask
+
+    // === Monitoring ===
+    // When data_ready is high: print scan code and state
+    // Otherwise: print press pulse only
+    always @(posedge clk) begin
+        if (data_ready) begin
+            #1;  // slight delay to reflect DUT's nonblocking updates
+            $display("[%0t] data_in = %02h, break_pending = %b w=%b a=%b s=%b d=%b sp=%b r=%b",
+                     $time, data_in, dut.break_pending,
+                     w_press, a_press, s_press, d_press,
+                     space_press, r_press);
+        end
+        else if (w_press | a_press | s_press | d_press | space_press | r_press) begin
+            $display("[%0t] *** press pulse *** break_pending=%b w=%b a=%b s=%b d=%b sp=%b r=%b",
+                     $time, dut.break_pending,
+                     w_press, a_press, s_press, d_press,
+                     space_press, r_press);
+        end
+    end
+
+    // === Test sequence ===
+    initial begin
+        // Initial values + reset
+        rst        = 1'b1;
+        data_in    = 8'h00;
+        data_ready = 1'b0;
+
+        repeat (5) @(posedge clk);
+        rst = 1'b0;
+        repeat (2) @(posedge clk);
+
+        // ------------------------------------------------
+        // Test 1: W make only
+        // ------------------------------------------------
+        $display("=== Test 1: W make (1D) only ===");
+        send_make(SC_W);   // Expect w_press pulse
+        repeat (8) @(posedge clk);
+
+        // ------------------------------------------------
+        // Test 2: W make + break (F0 1D)
+        // ------------------------------------------------
+        $display("=== Test 2: W make + break(F0 1D) ===");
+        send_make (SC_W);  // w_press = 1
+        send_break(SC_W);  // Should not generate any press pulse
+        repeat (12) @(posedge clk);
+
+        // ------------------------------------------------
+        // Test 3: A/S/D/SPACE/R make + break
+        // ------------------------------------------------
+        $display("=== Test 3: A/S/D/SPACE/R make + break test ===");
+
+        // A
+        $display("--- A key ---");
+        send_make (SC_A);    // a_press = 1
+        send_break(SC_A);
+        repeat (6) @(posedge clk);
+
+        // S
+        $display("--- S key ---");
+        send_make (SC_S);    // s_press = 1
+        send_break(SC_S);
+        repeat (6) @(posedge clk);
+
+        // D
+        $display("--- D key ---");
+        send_make (SC_D);    // d_press = 1
+        send_break(SC_D);
+        repeat (6) @(posedge clk);
+
+        // SPACE
+        $display("--- SPACE key ---");
+        send_make (SC_SPACE);  // space_press = 1
+        send_break(SC_SPACE);
+        repeat (6) @(posedge clk);
+
+        // R
+        $display("--- R key ---");
+        send_make (SC_R);      // r_press = 1
+        send_break(SC_R);
+        repeat (10) @(posedge clk);
+
+        // ------------------------------------------------
+        // Test 4: WA combination (W first, then A)
+        // ------------------------------------------------
+        $display("=== Test 4: WA (W → A → break both) ===");
+
+        // Simulate pressing both: send W make → send A make
+        send_make(SC_W);   // Expect w_press pulse
+        send_make(SC_A);   // Expect a_press pulse
+        repeat (8) @(posedge clk);
+
+        // Break order does not matter; no pulses should occur
+        send_break(SC_W);
+        send_break(SC_A);
+        repeat (12) @(posedge clk);
+
+        // ------------------------------------------------
+        // Test 5: WD combination
+        // ------------------------------------------------
+        $display("=== Test 5: WD (W → D → break both) ===");
+        send_make(SC_W);   // w_press
+        send_make(SC_D);   // d_press
+        repeat (8) @(posedge clk);
+        send_break(SC_W);
+        send_break(SC_D);
+        repeat (12) @(posedge clk);
+
+        // ------------------------------------------------
+        // Test 6: AS combination
+        // ------------------------------------------------
+        $display("=== Test 6: AS (A → S → break both) ===");
+        send_make(SC_A);   // a_press
+        send_make(SC_S);   // s_press
+        repeat (8) @(posedge clk);
+        send_break(SC_A);
+        send_break(SC_S);
+        repeat (12) @(posedge clk);
+
+        // ------------------------------------------------
+        // Test 7: DS combination
+        // ------------------------------------------------
+        $display("=== Test 7: DS (D → S → break both) ===");
+        send_make(SC_D);   // d_press
+        send_make(SC_S);   // s_press
+        repeat (8) @(posedge clk);
+        send_break(SC_D);
+        send_break(SC_S);
+        repeat (12) @(posedge clk);
+
+        $display("=== All tests done ===");
+        $finish;
+    end
+
+endmodule
