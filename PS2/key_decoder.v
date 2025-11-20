@@ -1,5 +1,4 @@
-// key_decoder.v
-// Convert 1-byte PS/2 scan code → WASD / Space / R key press pulse
+// Convert 1-byte PS/2 scan code for WASD / Space / R key press pulse
 module key_decoder (
     input  wire clk,
     input  wire rst,
@@ -15,7 +14,7 @@ module key_decoder (
     output reg        r_press
 );
 
-    // Scan code constants (Set 2 — modify if needed)
+    // Scan code constants 
     localparam [7:0] SC_F0    = 8'hF0;
     localparam [7:0] SC_W     = 8'h1D;
     localparam [7:0] SC_A     = 8'h1C;
