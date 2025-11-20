@@ -1,5 +1,4 @@
-// PS2.v
-// Top-level module: PS/2 keyboard input → key pulses, LEDs, HEX display, and game controller
+// Top-level module: PS/2 keyboard input to key pulses, LEDs, HEX display, and game controller
 
 module PS2 (
     input  wire        CLOCK_50,
