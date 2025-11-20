@@ -1,5 +1,4 @@
-// game_controller.v
-// Game state controller (start/stop/reset) + direction FSM based on keyboard input
+// Game state controller: (start/stop/reset) & direction FSM based on keyboard input
 module game_controller (
     input  wire clk,
     input  wire rst,            // Global board reset (active-high)
@@ -68,11 +67,11 @@ module game_controller (
                         state    <= ST_STOPPED;
                         game_run <= 1'b0;
                     end
-                    // If game_over becomes 1 → game stops
+                    // If game_over becomes 1, game stops
                     else if (game_over) begin
                         state    <= ST_STOPPED;
                         game_run <= 1'b0;
-                        // No auto-reset here; only pressing R should trigger reset pulse
+                        //only pressing R should trigger reset pulse
                     end
                 end
 
@@ -85,8 +84,8 @@ module game_controller (
     end
 
     // Direction register
-    // - DIR resets to NONE on power-up or game_reset_pulse
-    // - Direction updates only while RUNNING
+    // Dir resets to NONE on power-up or game_reset_pulse
+    // Direction updates only while running
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             dir <= DIR_NONE;
