@@ -1,6 +1,6 @@
 // PS/2 keyboard receiver: Reads an 11-bit frame and outputs 8-bit data + a 1-cycle ready pulse.
 module ps2_keyboard (
-    input  wire clk,        // System clock (e.g., 50 MHz)
+    input  wire clk,        // System clock 
     input  wire rst,        // Asynchronous reset, active-high
 
     input  wire ps2_clk,    // PS/2 clock pin
@@ -24,7 +24,7 @@ module ps2_keyboard (
 
     // Registers for receiving the 11-bit PS/2 frame
 
-    reg [3:0] bit_cnt;      // bit index: 0..10
+    reg [3:0] bit_cnt;      // bit index
     reg       start_bit;
     reg [7:0] data_bits;
     reg       parity_bit;
