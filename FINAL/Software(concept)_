@@ -1,0 +1,23 @@
+opsticles ()
+
+map
+
+player (char)
+
+w
+a
+s
+d
+(player movement)
+
+r
+(reset)
+
+spacebar
+(start/stop)
+
+collision
+
+lives (alive/dead)
+
+scores 
