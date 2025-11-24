@@ -18,18 +18,24 @@ module top (
 	 wire [15:0] busA_out;   
 	 wire [15:0] busB_out;
 	 wire	    	 LSCntl; 
-	 wire 		 ALU_MUX_Cntl; 
+	 wire [1:0]  ALU_MUX_Cntl; 
 	 wire        flags_en;
 	 
 	 wire	[1:0]	 PCsrc;
 	 wire	[15:0] branch_disp;
 	 
+	 //PC logic outside of PC mux
+	 wire [15:0] branch_PC;
+	 wire [15:0] inc_PC;
+	 assign branch_PC = PC_value + branch_disp;
+	 assign inc_PC    = PC_value + 16'h0001;
+	 
 	 // LSCntl MUX
     reg [15:0] mem_addr;
     always @(LSCntl or PC_value or busB_out) begin
         case (LSCntl)
-            1'b0: mem_addr = PC_value;               // instruction fetch
-            1'b1: mem_addr = busB_out;               // simulated reg value
+            1'b0:    mem_addr = PC_value;               // instruction fetch
+            1'b1:    mem_addr = busB_out;               // simulated reg value
             default: mem_addr = 16'h0000;
         endcase
     end
@@ -37,10 +43,11 @@ module top (
 	 
 	 //ALU_MUX_Cntl MUX
 	 reg [15:0] wb_data;
-	 always @(ALU_MUX_Cntl or alu_out or mem_dout) begin
+	 always @(ALU_MUX_Cntl or alu_out or mem_dout or PC_value) begin
         case (ALU_MUX_Cntl)
-            1'b0: wb_data = alu_out;               // instruction fetch
-            1'b1: wb_data = mem_dout;               // simulated reg value
+            2'b00:   wb_data = alu_out;                // instruction fetch
+            2'b01:   wb_data = mem_dout;               // simulated reg value
+				2'b10:   wb_data = PC_value;
             default: wb_data = 16'h0000;
         endcase
     end
@@ -49,10 +56,10 @@ module top (
 	 reg [15:0] PC_next;
 	always @(PCsrc or branch_disp or busB_out or PC_value) begin
 		case (PCsrc)
-			2'b00: PC_next = PC_value + 16'h0001;
-			2'b01: PC_next = PC_value + branch_disp;
-			2'b10: PC_next = busB_out;
-			default: PC_next = PC_value + 16'h0001;
+			2'b00:   PC_next = inc_PC;
+			2'b01:   PC_next = branch_PC;
+			2'b10:   PC_next = busB_out;
+			default: PC_next = inc_PC;
 		endcase
 	end
 	 
@@ -62,7 +69,7 @@ module top (
         .clk(clk),
         .rst(rst),
         .PCe(PCe),
-		.PC_in(PC_next),
+		  .PC_in(PC_next),
         .PC_value(PC_value)
     );
 

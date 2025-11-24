@@ -23,7 +23,7 @@ module controlFSM (
 	output reg         mem_WE,			// Memory write-enable for STORE 
 	
 	output reg      	 LSCntl,			
-	output reg			 ALU_MUX_Cntl,
+	output reg [1:0]   ALU_MUX_Cntl,
 	
 	output reg         flags_en      //wire for flags to update
 );
@@ -86,6 +86,7 @@ module controlFSM (
 	// NEW: Branch / Jump 
    wire is_branch = (op == 4'b1100);                     // Bcond disp
    wire is_jump   = (op == 4'b0100) && (ext == 4'b1100); // Jcond Rtarget
+	wire is_storePC    = (op == 4'b0100) && (ext == 4'b1000); //store PC
 	
 	
 	
@@ -296,20 +297,18 @@ module controlFSM (
 				end 
 				
 				// Branch / Jump
-				 else if (is_branch || is_jump) begin
-					  dec_R_I      <= 1'b0;
-					  dec_Rdest    <= 4'h0;
-					  dec_Rsrc   <= (is_jump) ? inst_reg[3:0] : 4'h0; // prepare jump target reg
-					  dec_Imm    <= inst_reg[7:0];                   // save disp for branch
-					  dec_Opcode   <= 8'h00;
-					  dec_is_cmp   <= 1'b0;
-					  dec_is_nop   <= 1'b0;
-					  dec_is_store <= 1'b0;
-					  dec_is_load  <= 1'b0;
-				 end
-				
-				
-				
+				else if (is_branch || is_jump) begin
+			      dec_R_I      <= 1'b0;
+				   dec_Rdest    <= 4'h0;
+			      dec_Rsrc   <= (is_jump) ? inst_reg[3:0] : 4'h0; // prepare jump target reg
+			  	   dec_Imm    <= inst_reg[7:0];                   // save disp for branch
+				   dec_Opcode   <= 8'h00;
+				   dec_is_cmp   <= 1'b0;
+				   dec_is_nop   <= 1'b0;
+					dec_is_store <= 1'b0;
+					dec_is_load  <= 1'b0;
+				end
+					
 				
 				else begin
 					dec_R_I    <= 1'b1;                  // use immediate for B
@@ -339,7 +338,7 @@ module controlFSM (
 				 // Enable register write unless the instruction is CMP/CMPI or NOP
 				 Ren <= (dec_is_cmp || dec_is_nop) ? 1'b0 : 1'b1; 
 				 
-				 ALU_MUX_Cntl <= 1'b0;						 // writeback from ALU
+
 			
 				 if (is_branch) begin
                     Ren <= 1'b0;
@@ -368,7 +367,16 @@ module controlFSM (
                         PCsrc <= 2'b00;       // PC + 1
                     end
                     // no Ren/mem_WE
-                end			
+              end
+				  if (is_storePC) begin
+						  PCe          <= 1'b1;
+						  PCsrc <= 2'b00;
+						  ALU_MUX_Cntl <= 2'b10;
+				
+				  end else begin
+						  ALU_MUX_Cntl <= 2'b00;						 // writeback from ALU
+				  end
+		
 			end
 			
 			
@@ -389,7 +397,7 @@ module controlFSM (
 				Opcode <= 8'h00; 								// Don't care
 				Imm    <= 8'h00;								// Not used
 				LSCntl <= 1'b1;								// addr from busA (Rdest)
-				ALU_MUX_Cntl <= 1'b0;						// irrelevant
+				ALU_MUX_Cntl <= 1'b00;						// irrelevant
 				flags_en <= 1'b0;
 			end
         
@@ -406,7 +414,7 @@ module controlFSM (
           Opcode <= 8'h00;									// ALU not used
           Imm    <= 8'h00;									// Not used
 			 LSCntl <= 1'b1;									// choose addr source
-			 ALU_MUX_Cntl <= 1'b0;							// still ALU path
+			 ALU_MUX_Cntl <= 1'b00;							// still ALU path
 			 flags_en <= 1'b0;
         end
 
@@ -423,7 +431,7 @@ module controlFSM (
           Opcode <= 8'h00;									// ALU not used
           Imm    <= 8'h00;							// Not used
 			 LSCntl <= 1'b0;
-			 ALU_MUX_Cntl <= 1'b1;							// reg write from memory
+			 ALU_MUX_Cntl <= 1'b01;							// reg write from memory
 			 flags_en <= 1'b0;
         end      
                   	
@@ -431,3 +439,4 @@ module controlFSM (
 	end
 	
 endmodule
+

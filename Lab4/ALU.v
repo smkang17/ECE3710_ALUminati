@@ -31,6 +31,7 @@ parameter CMPI   = 8'b1011xxxx;
 parameter CMPU   = 8'b00001111; //not in ISA
 parameter CMPUI  = 8'b1110xxxx; //replaced 'MULI' in ISA
 parameter AND    = 8'b00000001;
+parameter ANDI   = 8'b0001xxxx; 
 parameter OR     = 8'b00000010;
 parameter XOR    = 8'b00000011;
 parameter NOT    = 8'b00000100; //not in ISA
@@ -199,6 +200,15 @@ always @(A,B,Opcode, Cin) begin
             Flags[1] = 1'b0;
             Flags[0] = 1'b0;
         end
+		  
+		  ANDI: begin
+	         C = A & B;
+            Flags[4] = C[15];
+            Flags[3] = (C == 16'h0000);
+            Flags[2] = 1'b0;
+            Flags[1] = 1'b0;
+            Flags[0] = 1'b0;
+		  end
 
         OR: begin
             C = A | B;
