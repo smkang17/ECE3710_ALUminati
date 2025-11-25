@@ -1,7 +1,10 @@
 module VGA_Controller (
-	input wire clock, 				// 100 MHz clock
+	input wire clock,
 	input wire clear,
 	
+	output sync,
+	output clk,
+	output blank,
 	output reg hSync, 
 	output reg vSync, 
 	output reg bright,
@@ -9,34 +12,6 @@ module VGA_Controller (
 	output reg [9:0] hCount, 
 	output reg [9:0] vCount
 );
-	// This module controls the counters
-	
-	/*
-		Horizontal timing:
-			0 -> 639: 		visible pixels
-			640 -> 655: 	front porch
-			656 -> 751: 	sync pulse (hSync low)
-			752 -> 799: 	back porch
-			
-		Vertical timing:
-			0 -> 479:		visible lines
-			480 -> 489:		front porch
-			490 -> 491:		sync pulse (vSync low)
-			492 -> 524:		back porch
-	*/
-	
-
-	// 25 MHz Enable Pulse for counter
-	reg [1:0] divider = 0;
-	wire enable = (divider == 0);
-	
-	always @(posedge clock) begin
-		if (clear)
-			divider <= 0;
-		else 
-			divider <= divider + 1;
-	end
-	
 	
 	// VGA timing parameters 
 	// Horizontal
@@ -61,13 +36,14 @@ module VGA_Controller (
 	reg [9:0] vCounter = 0;
 	
 	always @(posedge clock) begin
-		if (clear) begin
+		if (!clear) begin
 			hCounter <= 0;
 			vCounter <= 0;
 		end
-		else if (enable) begin
+		else begin
 			if (hCounter == H_TOTAL - 1) begin
 				hCounter <= 0;
+				
 				if (vCounter == V_TOTAL -1)
 					vCounter <= 0;
 				else
@@ -75,6 +51,7 @@ module VGA_Controller (
 			end
 			else 
 				hCounter <= hCounter + 1;
+		end
 	end
 
 
@@ -99,5 +76,9 @@ module VGA_Controller (
 			hCount <= hCounter;
 			vCount <= vCounter;
 	end
-		
+	
+	assign sync = 1'b_0;
+	assign clk = clock;
+	assign blank = hSync & vSync;
+	
 endmodule
