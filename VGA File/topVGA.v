@@ -1,22 +1,35 @@
 module topVGA(
-	input clock,
-	input clear,
+	input wire CLOCK_50,
+	input wire clear,
 	
-	output hSync,
-	output vSync,
-	output [3:0] red,
-	output [3:0] green,
-	output [3:0] blue
-);
-
+	output wire sync,
+	output wire clk,
+	output wire blank,
+	output wire hSync,
+	output wire vSync,
+	
+	output wire [3:0] red,
+	output wire [3:0] green,
+	output wire [3:0] blue
+);	
+	
 	wire [9:0] hCount, vCount;
 	wire bright;
 	
+	 // -----------------------------
+    // Generate ~25 MHz clock from 50 MHz
+    // -----------------------------
+    reg clk_25 = 0;
+    always @(posedge CLOCK_50) clk_25 <= ~clk_25;
+	
 	VGA_Controller vc(
-		.clock(clock),
+		.clock(clk_25),
 		.clear(clear),
 		.hSync(hSync),
 		.vSync(vSync),
+		.sync(sync),
+		.clk(clk),
+		.blank(blank),
 		.hCount(hCount),
 		.vCount(vCount),
 		.bright(bright)
