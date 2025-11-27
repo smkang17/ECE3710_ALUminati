@@ -1,4 +1,4 @@
-module CPU (
+module TOP (
     input  wire CLOCK_50,
     input  wire KEY0,      // active-low reset
 
@@ -62,3 +62,4 @@ module CPU (
     );
 
 endmodule
+
