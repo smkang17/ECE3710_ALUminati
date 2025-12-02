@@ -28,24 +28,6 @@ module PS2 (
         end
     end
 
-    // -----------------------------------------------------------------
-    // One-clock press pulses
-    // -----------------------------------------------------------------
-    wire w_press, a_press, s_press, d_press;
-    wire space_press, r_press;
-
-    key_decoder u_dec (
-        .clk         (CLOCK_50),
-        .rst         (rst),
-        .data_in     (scan_code),
-        .data_ready  (scan_ready),
-        .w_press     (w_press),
-        .a_press     (a_press),
-        .s_press     (s_press),
-        .d_press     (d_press),
-        .space_press (space_press),
-        .r_press     (r_press)
-    );
 
     // -----------------------------------------------------------------
     // Held-state key status bits (W A S D Space R)
@@ -64,3 +46,4 @@ module PS2 (
     assign key_status_out = key_status;
 
 endmodule
+
