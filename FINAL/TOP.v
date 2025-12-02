@@ -29,7 +29,7 @@ module TOP (
         .clk        (CLOCK_50),
         .rst        (rst),
         .key_status (ps2_key_status)
-        // keep all your original CPU ports here
+        //
     );
 
     // -----------------------------------------------------------
@@ -62,4 +62,5 @@ module TOP (
     );
 
 endmodule
+
 
