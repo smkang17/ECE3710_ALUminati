@@ -5,7 +5,8 @@ module vgaFSM (
     input wire bright,
     input wire [9:0] hCount,
     input wire [9:0] vCount,
-
+	 
+	 input wire [5:0] key_status,
     input wire [15:0] q_b,
     output reg [9:0] addr_b,
 
@@ -88,7 +89,7 @@ module vgaFSM (
     reg [9:0] obs_y [0:MAX_OBS-1];
 
 	 
-	 // Load positions from Bram (FSM)
+	 // Load positions from Bram (LOAD FSM)
     localparam L_IDLE   = 3'd0;
     localparam L_COUNT  = 3'd1;
     localparam L_X      = 3'd2;
@@ -164,16 +165,32 @@ module vgaFSM (
                 end
 
                 // Stay here forever; positions now come only from registers
-                L_DONE: begin
-                    // no further BRAM reads; addr_b can stay whatever
-                end
-
+                   L_DONE: begin
+							 // Once loading is done, we apply movement logic
+							 if (hCount == 0 && vCount == 0) begin
+								  // W = up
+								  if (key_status[0] && player_y > 0)
+										player_y <= player_y - 2;
+						
+								  // S = down
+								  if (key_status[2] && player_y < (480 - PLAYER_H))
+										player_y <= player_y + 2;
+						
+								  // A = left
+								  if (key_status[1] && player_x > 0)
+										player_x <= player_x - 2;
+						
+								  // D = right
+								  if (key_status[3] && player_x < (640 - PLAYER_W))
+										player_x <= player_x + 2;
+							 end
+						end
                 default: load_state <= L_IDLE;
             endcase
         end
     end
 
-	 
+
 	 // Draw (per-pixel, using registers)
     reg player_pixel;
     reg obs_pixel;
