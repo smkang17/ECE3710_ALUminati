@@ -11,15 +11,9 @@ module topVGA(
     output wire vga_clk
 );
 
-    // -----------------------------
-    // 25 MHz pixel clock (toggle)
-    // -----------------------------
     reg clk_25 = 0;
     always @(posedge clk) clk_25 <= ~clk_25;
 
-    // -----------------------------
-    // VGA controller
-    // -----------------------------
     wire bright;
     wire [9:0] hCount, vCount;
 
@@ -35,41 +29,32 @@ module topVGA(
         .hCount(hCount),
         .vCount(vCount)
     );
-// ======================
-// BRAM
-// ======================
-wire [15:0] bram_q;
-reg  [15:0] bram_d = 0;   // unused for now
-wire [9:0]  bram_addr;
+	 
+	 wire [9:0] addr_b;
+	 wire [15:0] q_b;
+	
+	Bram bram (
+		 .clk(clk_25),
+		 .addr_b(addr_b),
+		 .q_b(q_b),
+		 .we_b(1'b0),
+	);
 
-Bram #(.DATA_WIDTH(16), .ADDR_WIDTH(10)) BRAM (
-    .data_a(bram_d),
-    .addr_a(bram_addr),
-    .we_a(1'b0),
-    .clk(clk_25),
-    .q_a(bram_q),
+	vgaFSM fsm (
+		 .clk(clk_25),
+		 .reset(reset),
+		 .bright(bright),
+		 .hCount(hCount),
+		 .vCount(vCount),
+	
+		 .q_b(q_b),            // from BRAM port B
+		 .addr_b(addr_b),      // to BRAM port B
+	
+		 .r(r),
+		 .g(g),
+		 .b(b)
+	);
 
-    .data_b(16'b0),
-    .addr_b(10'b0),
-    .we_b(1'b0),
-    .q_b()
-);
 
-
-// ======================
-// Sprite Renderer
-// ======================
-SpriteRenderer renderer (
-    .clk(clk_25),
-	 .rst(reset),
-    .hCount(hCount),
-    .vCount(vCount),
-    .bright(bright),
-    .bram_addr(bram_addr),
-    .bram_data(bram_q),
-    .r(r),
-    .g(g),
-    .b(b)
-);
 
 endmodule
