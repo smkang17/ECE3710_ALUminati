@@ -87,6 +87,7 @@ module vgaFSM (
 
     reg [9:0] obs_x [0:MAX_OBS-1];
     reg [9:0] obs_y [0:MAX_OBS-1];
+	 reg obs_dir [0:MAX_OBS-1]; // Moving logic for obstacles, 0 = left/up, 1 = right/down
 
 	 
 	 // Load positions from Bram (LOAD FSM)
@@ -100,7 +101,7 @@ module vgaFSM (
     reg [4:0] load_index;   // which sprite we are on (0 = player)
     reg [9:0] temp_x;       // holds x while we read y
 
-    integer i;
+    integer i, k;
 
     wire loaded = (load_state == L_DONE);
 
@@ -116,6 +117,7 @@ module vgaFSM (
             for (i = 0; i < MAX_OBS; i = i + 1) begin
                 obs_x[i] <= 10'd0;
                 obs_y[i] <= 10'd0;
+					 obs_dir[i] <= 1'b0;
             end
         end else begin
             case (load_state)
@@ -165,9 +167,10 @@ module vgaFSM (
                 end
 
                 // Stay here forever; positions now come only from registers
-                   L_DONE: begin
+						L_DONE: begin
 							 // Once loading is done, we apply movement logic
 							 if (hCount == 0 && vCount == 0) begin
+								  // Player movement
 								  // W = up
 								  if (key_status[0] && player_y > 0)
 										player_y <= player_y - 2;
@@ -183,9 +186,55 @@ module vgaFSM (
 								  // D = right
 								  if (key_status[3] && player_x < (640 - PLAYER_W))
 										player_x <= player_x + 2;
+						
+								  // Obstacle movement
+								  // even index -> horizontal
+								  // odd index  -> vertical
+									for (k = 0; k < MAX_OBS; k = k + 1) begin
+										 // Horizontal movers: k even
+										 if (k[0] == 1'b0) begin
+											  if (obs_dir[k] == 1'b0) begin
+													// moving left
+													if (obs_x[k] > 0)
+														 obs_x[k] <= obs_x[k] - 1;
+													else begin
+														 obs_x[k]   <= 0;        // stay at left edge
+														 obs_dir[k] <= 1'b1;     // now move right
+													end
+											  end else begin
+													// moving right
+													if (obs_x[k] < (640 - OBS_W))
+														 obs_x[k] <= obs_x[k] + 1;
+													else begin
+														 obs_x[k]   <= 640 - OBS_W; // stay at right edge
+														 obs_dir[k] <= 1'b0;        // now move left
+													end
+											  end
+										 end
+										 // Vertical movers: k odd
+										 else begin
+											  if (obs_dir[k] == 1'b0) begin
+													// moving up
+													if (obs_y[k] > 0)
+														 obs_y[k] <= obs_y[k] - 1;
+													else begin
+														 obs_y[k]   <= 0;        // stay at top
+														 obs_dir[k] <= 1'b1;     // now move down
+													end
+											  end else begin
+													// moving down
+													if (obs_y[k] < (480 - OBS_H))
+														 obs_y[k] <= obs_y[k] + 1;
+													else begin
+														 obs_y[k]   <= 480 - OBS_H; // stay at bottom
+														 obs_dir[k] <= 1'b0;        // now move up
+													end
+											  end
+										 end
+									end
 							 end
 						end
-                default: load_state <= L_IDLE;
+					default: load_state <= L_IDLE;
             endcase
         end
     end
