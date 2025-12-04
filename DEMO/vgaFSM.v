@@ -129,42 +129,42 @@ module vgaFSM (
 		 obsGlyph[15] = 128'h00000000000000000000000000000000;
 	end
 	
-		// Title 
-		localparam TITLE_LEN = 15;
-		localparam TITLE_X = 252;
+	// Title 
+	localparam TITLE_LEN = 15;
+	localparam TITLE_X = 252;
 		
-		reg [3:0] title_text [0:TITLE_LEN-1];
-		initial begin
-			 title_text[0]  = 0;   // A
-			 title_text[1]  = 1;   // L
-			 title_text[2]  = 2;   // U
-			 title_text[3]  = 3;   // M
-			 title_text[4]  = 4;   // I
-			 title_text[5]  = 5;   // N
-			 title_text[6]  = 0;   // A
-			 title_text[7]  = 6;   // T
-			 title_text[8]  = 4;   // I
+	reg [3:0] title_text [0:TITLE_LEN-1];
+	initial begin
+		 title_text[0]  = 0;   // A
+		 title_text[1]  = 1;   // L
+		 title_text[2]  = 2;   // U
+		 title_text[3]  = 3;   // M
+		 title_text[4]  = 4;   // I
+		 title_text[5]  = 5;   // N
+		 title_text[6]  = 0;   // A
+		 title_text[7]  = 6;   // T
+		 title_text[8]  = 4;   // I
+	
+		 title_text[9]  = 4'd15; // space
+	
+		 title_text[10] = 7;   // D
+		 title_text[11] = 8;   // O
+		 title_text[12] = 7;   // D
+		 title_text[13] = 9;   // G
+		 title_text[14] = 10;  // E
+	end
 		
-			 title_text[9]  = 4'd15; // space
+	wire [127:0] font_row;
+	reg  [3:0]   font_sel;
+	reg  [3:0]   font_row_index;
+	wire [31:0] font_row32;
+	assign font_row32 = font_row[31:0];
 		
-			 title_text[10] = 7;   // D
-			 title_text[11] = 8;   // O
-			 title_text[12] = 7;   // D
-			 title_text[13] = 9;   // G
-			 title_text[14] = 10;  // E
-		end
-		
-		wire [127:0] font_row;
-		reg  [3:0]   font_sel;
-		reg  [3:0]   font_row_index;
-		wire [31:0] font_row32;
-		assign font_row32 = font_row[31:0];
-		
-		FontROM font_rom (
-			 .char_sel(font_sel),
-			 .row(font_row_index),
-			 .glyph_row(font_row)
-		);
+	FontROM font_rom (
+		 .char_sel(font_sel),
+		 .row(font_row_index),
+		 .glyph_row(font_row)
+	);
 
     //=====================================================
     // Sprite position registers
@@ -177,6 +177,22 @@ module vgaFSM (
     reg [9:0] obs_x [0:MAX_OBS-1]; // BRAM[SPRITE_BASE + 3..]
     reg [9:0] obs_y [0:MAX_OBS-1];
     reg       obs_dir [0:MAX_OBS-1]; // 0 = left/up, 1 = right/down
+
+    // Game state: running / paused / game over (for collision + pause logic)
+    localparam [1:0] STATE_RUNNING   = 2'd0;
+    localparam [1:0] STATE_PAUSED    = 2'd1;
+    localparam [1:0] STATE_GAME_OVER = 2'd2;
+
+    reg [1:0] game_state;
+    reg       space_old;   // previous SPACE key state for edge detection
+
+    // Decode key_status bits (assuming [0]=W, [1]=A, [2]=S, [3]=D, [4]=SPACE, [5]=R)
+    wire key_w     = key_status[0];
+    wire key_a     = key_status[1];
+    wire key_s     = key_status[2];
+    wire key_d     = key_status[3];
+    wire key_space = key_status[4];
+    wire key_r     = key_status[5];
 
     //=====================================================
     // Load positions from BRAM (LOAD FSM)
@@ -192,9 +208,9 @@ module vgaFSM (
     reg [9:0] temp_x;       // holds X while reading Y
 
     integer i, k, j, t;
-	 integer sx_p, sy_p, sx_o, sy_o;
-	 integer cx, px;
-	 integer bit_offset;
+	integer sx_p, sy_p, sx_o, sy_o;
+	integer cx, px;
+	integer bit_offset;
 	 
     wire loaded = (load_state == L_DONE);
 
@@ -212,6 +228,10 @@ module vgaFSM (
                 obs_y[i]   <= 10'd0;
                 obs_dir[i] <= 1'b0;
             end
+
+            // game state reset
+            game_state <= STATE_RUNNING;
+            space_old  <= 1'b0;
         end else begin
             case (load_state)
                 // Set addr_b to sprite base, wait one cycle for q_b
@@ -241,91 +261,138 @@ module vgaFSM (
                         // sprite 0 = player
                         player_x <= temp_x;
                         player_y <= q_b[9:0];
-                    end else if (load_index - 1 < MAX_OBS) begin
-                        // sprites 1.. = obstacles
-                        obs_x[load_index - 1] <= temp_x;
-                        obs_y[load_index - 1] <= q_b[9:0];
+                    end else begin
+                        // obstacles: index 1..sprite_count-1 => store into obs_x/obs_y
+                        if (load_index - 5'd1 < MAX_OBS) begin
+                            obs_x[load_index - 5'd1] <= temp_x;
+                            obs_y[load_index - 5'd1] <= q_b[9:0];
+                            // keep obs_dir as-is (CPU doesn't control it)
+                        end
                     end
 
+                    // Next sprite
                     load_index <= load_index + 5'd1;
 
-                    // More sprites to load? (cap at MAX_OBS+1: player + MAX_OBS)
-                    if ( (load_index + 5'd1) < sprite_count &&
-                         (load_index + 5'd1) < (MAX_OBS + 1) ) begin
-                        addr_b     <= addr_b + 10'd1; // next X
+                    if (load_index + 5'd1 < sprite_count[4:0]) begin
+                        // still more sprites: set addr_b to next X
+                        addr_b     <= SPRITE_BASE + 10'd1 + (load_index + 5'd1)*10'd2;
                         load_state <= L_X;
                     end else begin
+                        // Finished loading all sprites
                         load_state <= L_DONE;
                     end
                 end
 
-                // Positions fixed in registers; here we apply movement logic
+                // All sprite positions loaded; positions fixed in registers; here we apply movement logic
                 L_DONE: begin
-                    // Move once per frame (when hCount = vCount = 0)
+                    // One update per frame at top-left pixel
                     if (hCount == 0 && vCount == 0) begin
-                        // ---------------------------------------
-                        // Player movement (WASD from key_status)
-                        // key_status[0] = W, [1] = A, [2] = S, [3] = D (assumed)
-                        // ---------------------------------------
-                        // W = up
-                        if (key_status[0] && player_y > 0)
-                            player_y <= player_y - 2;
+                        // ------------------------------------------------
+                        // R key: full reset (reload positions from BRAM)
+                        // ------------------------------------------------
+                        if (key_r) begin
+                            game_state <= STATE_RUNNING;
+                            space_old  <= 1'b0;
 
-                        // S = down
-                        if (key_status[2] && player_y < (480 - PLAYER_H))
-                            player_y <= player_y + 2;
-
-                        // A = left
-                        if (key_status[1] && player_x > 0)
-                            player_x <= player_x - 2;
-
-                        // D = right
-                        if (key_status[3] && player_x < (640 - PLAYER_W))
-                            player_x <= player_x + 2;
-
-                        // ---------------------------------------
-                        // Obstacle movement
-                        // even index -> horizontal movement
-                        // odd  index -> vertical movement
-                        // ---------------------------------------
-                        for (k = 0; k < MAX_OBS; k = k + 1) begin
-                            // Horizontal movers: k even
-                            if (k[0] == 1'b0) begin
-                                if (obs_dir[k] == 1'b0) begin
-                                    // moving left
-                                    if (obs_x[k] > 0)
-                                        obs_x[k] <= obs_x[k] - 1;
-                                    else begin
-                                        obs_x[k]   <= 0;
-                                        obs_dir[k] <= 1'b1; // now move right
-                                    end
-                                end else begin
-                                    // moving right
-                                    if (obs_x[k] < (640 - OBS_W))
-                                        obs_x[k] <= obs_x[k] + 1;
-                                    else begin
-                                        obs_x[k]   <= 640 - OBS_W;
-                                        obs_dir[k] <= 1'b0; // now move left
-                                    end
-                                end
+                            // restart load FSM so player/obstacles are
+                            // reloaded from BRAM initial values
+                            load_state <= L_IDLE;
+                            addr_b     <= SPRITE_BASE;
+                        end else begin
+                            // ------------------------------------------------
+                            // SPACE: pause / resume toggle (ignored in GAME_OVER)
+                            // rising edge: key_space == 1 && space_old == 0
+                            // ------------------------------------------------
+                            if (key_space && !space_old && game_state != STATE_GAME_OVER) begin
+                                if (game_state == STATE_RUNNING)
+                                    game_state <= STATE_PAUSED;
+                                else if (game_state == STATE_PAUSED)
+                                    game_state <= STATE_RUNNING;
                             end
-                            // Vertical movers: k odd
-                            else begin
-                                if (obs_dir[k] == 1'b0) begin
-                                    // moving up
-                                    if (obs_y[k] > 0)
-                                        obs_y[k] <= obs_y[k] - 1;
-                                    else begin
-                                        obs_y[k]   <= 0;
-                                        obs_dir[k] <= 1'b1; // now move down
+                            // remember current SPACE key
+                            space_old <= key_space;
+
+                            // Only update positions when running
+                            if (game_state == STATE_RUNNING) begin
+                                // ---------------------------------------
+                                // Player movement (WASD)
+                                // ---------------------------------------
+                                // W = up
+                                if (key_w && player_y > 0)
+                                    player_y <= player_y - 2;
+
+                                // S = down
+                                if (key_s && player_y < (480 - PLAYER_H))
+                                    player_y <= player_y + 2;
+
+                                // A = left
+                                if (key_a && player_x > 0)
+                                    player_x <= player_x - 2;
+
+                                // D = right
+                                if (key_d && player_x < (640 - PLAYER_W))
+                                    player_x <= player_x + 2;
+
+                                // ---------------------------------------
+                                // Obstacle movement + collision detect
+                                // even index -> horizontal
+                                // odd  index -> vertical
+                                // ---------------------------------------
+                                for (k = 0; k < MAX_OBS; k = k + 1) begin
+                                    // Horizontal movers: k even
+                                    if (k[0] == 1'b0) begin
+                                        if (obs_dir[k] == 1'b0) begin
+                                            // moving left
+                                            if (obs_x[k] > 0)
+                                                obs_x[k] <= obs_x[k] - 1;
+                                            else begin
+                                                obs_x[k]   <= 0;
+                                                obs_dir[k] <= 1'b1; // now move right
+                                            end
+                                        end else begin
+                                            // moving right
+                                            if (obs_x[k] < (640 - OBS_W))
+                                                obs_x[k] <= obs_x[k] + 1;
+                                            else begin
+                                                obs_x[k]   <= 640 - OBS_W;
+                                                obs_dir[k] <= 1'b0; // now move left
+                                            end
+                                        end
                                     end
-                                end else begin
-                                    // moving down
-                                    if (obs_y[k] < (480 - OBS_H))
-                                        obs_y[k] <= obs_y[k] + 1;
+                                    // Vertical movers: k odd
                                     else begin
-                                        obs_y[k]   <= 480 - OBS_H;
-                                        obs_dir[k] <= 1'b0; // now move up
+                                        if (obs_dir[k] == 1'b0) begin
+                                            // moving up
+                                            if (obs_y[k] > 0)
+                                                obs_y[k] <= obs_y[k] - 1;
+                                            else begin
+                                                obs_y[k]   <= 0;
+                                                obs_dir[k] <= 1'b1; // now move down
+                                            end
+                                        end else begin
+                                            // moving down
+                                            if (obs_y[k] < (480 - OBS_H))
+                                                obs_y[k] <= obs_y[k] + 1;
+                                            else begin
+                                                obs_y[k]   <= 480 - OBS_H;
+                                                obs_dir[k] <= 1'b0; // now move up
+                                            end
+                                        end
+                                    end
+
+                                    // -----------------------------------
+                                    // Collision detection (AABB overlap)
+                                    // Uses current player & obstacle rects.
+                                    // Sets game_state to GAME_OVER; movement
+                                    // will stop from the next frame.
+                                    // -----------------------------------
+                                    if (game_state == STATE_RUNNING) begin
+                                        if ( (player_x <  obs_x[k] + OBS_W) &&
+                                             (player_x + PLAYER_W > obs_x[k]) &&
+                                             (player_y <  obs_y[k] + OBS_H) &&
+                                             (player_y + PLAYER_H > obs_y[k]) ) begin
+                                            game_state <= STATE_GAME_OVER;
+                                        end
                                     end
                                 end
                             end
@@ -344,42 +411,42 @@ module vgaFSM (
     reg [3:0] pix;
 
     always @(*) begin
-		  font_row_index = 4'b0;
+		font_row_index = 4'b0;
         sprite_index = 4'd0;   // 0 = transparent / background
 
         if (bright && loaded) begin
-        // Title
-        if (vCount >= 4 && vCount < 12) begin
-            font_row_index = vCount - 4;   // 0..7
+            // Title
+            if (vCount >= 4 && vCount < 12) begin
+                font_row_index = vCount - 4;   // 0..7
 
-            for (t = 0; t < TITLE_LEN; t = t + 1) begin
-                cx = TITLE_X + (t * 9);    // 8px glyph + 1px spacing
+                for (t = 0; t < TITLE_LEN; t = t + 1) begin
+                    cx = TITLE_X + (t * 9);    // 8px glyph + 1px spacing
 
-                if (hCount >= cx && hCount < cx + 8) begin
-                    px = hCount - cx;      // 0..7 inside glyph
+                    if (hCount >= cx && hCount < cx + 8) begin
+                        px = hCount - cx;      // 0..7 inside glyph
 
-                    font_sel = title_text[t];
+                        font_sel = title_text[t];
 
-                    if (font_sel != 4'd15) begin   // 15 = SPACE
-                        // Select nibble based on px (0..7)
-                        case (px)
-                            0: pix = font_row32[3:0];
-                            1: pix = font_row32[7:4];
-                            2: pix = font_row32[11:8];
-                            3: pix = font_row32[15:12];
-                            4: pix = font_row32[19:16];
-                            5: pix = font_row32[23:20];
-                            6: pix = font_row32[27:24];
-                            7: pix = font_row32[31:28];
-                            default: pix = 4'd0;
-                        endcase
+                        if (font_sel != 4'd15) begin   // 15 = SPACE
+                            // Select nibble based on px (0..7)
+                            case (px)
+                                0: pix = font_row32[3:0];
+                                1: pix = font_row32[7:4];
+                                2: pix = font_row32[11:8];
+                                3: pix = font_row32[15:12];
+                                4: pix = font_row32[19:16];
+                                5: pix = font_row32[23:20];
+                                6: pix = font_row32[27:24];
+                                7: pix = font_row32[31:28];
+                                default: pix = 4'd0;
+                            endcase
 
-                        if (pix != 4'd0)
-                            sprite_index = pix;  // draw letter pixel
+                            if (pix != 4'd0)
+                                sprite_index = pix;  // draw letter pixel
+                        end
                     end
                 end
             end
-        end
 				
             // Player on top
             if (hCount >= player_x && hCount < player_x + PLAYER_W &&
