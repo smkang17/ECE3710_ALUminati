@@ -201,7 +201,7 @@ module vgaFSM (
             space_old   <= 1'b0;
             frame_cnt   <= 16'd0;
             speed_level <= 4'd0;
-            active_obs  <= 4'd2;   // 처음부터 2개 활성
+            active_obs  <= 4'd2;  
         end else begin
             case (load_state)
                 L_IDLE: begin
@@ -443,4 +443,5 @@ module vgaFSM (
     end
 
 endmodule
+
 
