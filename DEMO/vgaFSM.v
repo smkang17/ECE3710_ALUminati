@@ -252,7 +252,7 @@ module vgaFSM (
                             addr_b      <= SPRITE_BASE;
                             frame_cnt   <= 16'd0;
                             speed_level <= 4'd0;
-                            active_obs  <= 4'd2;   // 리셋 시도 2개 활성
+                            active_obs  <= 4'd2;   
                         end else begin
                             if (key_space && !space_old && game_state != STATE_GAME_OVER) begin
                                 if (game_state == STATE_RUNNING)
@@ -443,3 +443,4 @@ module vgaFSM (
     end
 
 endmodule
+
