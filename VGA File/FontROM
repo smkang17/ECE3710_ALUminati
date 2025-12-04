@@ -103,8 +103,8 @@ module FontROM (
         fontN[3]=8'b11011011;
         fontN[4]=8'b11001111;
         fontN[5]=8'b11000111;
-        fontN[6]=8'b10000011;
-        fontN[7]=8'b10000011;
+        fontN[6]=8'b11000011;
+        fontN[7]=8'b11000011;
 
         // T
         fontT[0]=8'b11111111;
