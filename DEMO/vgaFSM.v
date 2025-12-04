@@ -48,68 +48,123 @@ module vgaFSM (
     // If CPU writes sprite_count to address 0xF0, set 10'h0F0, etc.
     localparam [9:0] SPRITE_BASE = 10'd0;   // <<< CHANGE THIS IF NEEDED
 
-    //=====================================================
-    // Player sprite bitmap
-    //=====================================================
-    reg [PLAYER_W-1:0] playerGlyph [0:PLAYER_H-1];
+    // ------------------------------------------------
+    // Palette: 4-bit index -> 12-bit {r,g,b}
+    // ------------------------------------------------
+    reg [11:0] palette [0:15];
     initial begin
-        playerGlyph[0]  = 32'b11111111111111111111111111111111;
-        playerGlyph[1]  = 32'b11111111111111111111111111111111;
-        playerGlyph[2]  = 32'b11111111111111111111111111111111;
-        playerGlyph[3]  = 32'b11100000000000000000000000000111;
-        playerGlyph[4]  = 32'b11100000000000000000000000000111;
-        playerGlyph[5]  = 32'b11100000000000000000000000000111;
-        playerGlyph[6]  = 32'b11100000000000000000000000000111;
-        playerGlyph[7]  = 32'b11100000000000000000000000000111;
-        playerGlyph[8]  = 32'b11100000000000000000000000000111;
-        playerGlyph[9]  = 32'b11100000000000000000000000000111;
-        playerGlyph[10] = 32'b11100001111000000000011110000111;
-        playerGlyph[11] = 32'b11100001111000000000011110000111;
-        playerGlyph[12] = 32'b11100001111000000000011110000111;
-        playerGlyph[13] = 32'b11100001111000000000011110000111;
-        playerGlyph[14] = 32'b11100000000000000000000000000111;
-        playerGlyph[15] = 32'b11100000000000000000000000000111;
-        playerGlyph[16] = 32'b11100000000000000000000000000111;
-        playerGlyph[17] = 32'b11100000000000000000000000000111;
-        playerGlyph[18] = 32'b11100000000000000000000000000111;
-        playerGlyph[19] = 32'b11100000000000000000000000000111;
-        playerGlyph[20] = 32'b11100000000111111111100000000111;
-        playerGlyph[21] = 32'b11100000000111111111100000000111;
-        playerGlyph[22] = 32'b11100000000000000000000000000111;
-        playerGlyph[23] = 32'b11100000000000000000000000000111;
-        playerGlyph[24] = 32'b11100000000000000000000000000111;
-        playerGlyph[25] = 32'b11100000000000000000000000000111;
-        playerGlyph[26] = 32'b11100000000000000000000000000111;
-        playerGlyph[27] = 32'b11100000000000000000000000000111;
-        playerGlyph[28] = 32'b11100000000000000000000000000111;
-        playerGlyph[29] = 32'b11111111111111111111111111111111;
-        playerGlyph[30] = 32'b11111111111111111111111111111111;
-        playerGlyph[31] = 32'b11111111111111111111111111111111;
+        palette[0]  = 12'h000; // 0: transparent / black
+        palette[1]  = 12'h000; // 1: black (outline)
+        palette[2]  = 12'hFFF; // 2: white
+        palette[3]  = 12'hCA3; // 3: gold 1
+        palette[4]  = 12'hB90; // 4: gold 2
+        palette[5]  = 12'hCB0; // 5: bright yellow
+        palette[6]  = 12'hBC3; // 6: yellow-green
+        palette[7]  = 12'hBCC; // 7: light teal-gray
+        palette[8]  = 12'hEFF; // 8: very light gray
+        palette[9]  = 12'h798; // 9: greenish mid tone
+        palette[10] = 12'h454; // 10: dark greenish
+        palette[11] = 12'h000;
+        palette[12] = 12'h000;
+        palette[13] = 12'h000;
+        palette[14] = 12'h000;
+        palette[15] = 12'h000;
     end
 
-    //=====================================================
-    // Obstacle sprite bitmap (some shape)
-    //=====================================================
-    reg [OBS_W-1:0] obsGlyph [0:OBS_H-1];
-    integer gi;
+    // Player sprite
+    (* ramstyle = "M10K" *) reg [127:0] playerGlyph [0:PLAYER_H-1];
     initial begin
-        obsGlyph[0]  = 16'b0000001111000000;
-        obsGlyph[1]  = 16'b0000111111110000;
-        obsGlyph[2]  = 16'b0001110000111000;
-        obsGlyph[3]  = 16'b0011000000001100;
-        obsGlyph[4]  = 16'b0110000000000110;
-        obsGlyph[5]  = 16'b1100000000000011;
-        obsGlyph[6]  = 16'b1100000000000011;
-        obsGlyph[7]  = 16'b1100000000000011;
-        obsGlyph[8]  = 16'b1100000000000011;
-        obsGlyph[9]  = 16'b1100000000000011;
-        obsGlyph[10] = 16'b0110000000000110;
-        obsGlyph[11] = 16'b0011000000001100;
-        obsGlyph[12] = 16'b0001110000111000;
-        obsGlyph[13] = 16'b0000111111110000;
-        obsGlyph[14] = 16'b0000001111000000;
-        obsGlyph[15] = 16'b0000000000000000;
+        playerGlyph[0]  = 128'h000000000000000FF000000000000000;
+        playerGlyph[1]  = 128'h000000000000000FF000000000000000;
+        playerGlyph[2]  = 128'h00000000000000F33F00000000000000;
+        playerGlyph[3]  = 128'h00000000000000F33F00000000000000;
+        playerGlyph[4]  = 128'h0000000000000F4444F0000000000000;
+        playerGlyph[5]  = 128'h0000000000000F3333F0000000000000;
+        playerGlyph[6]  = 128'h000000000000F333333F000000000000;
+        playerGlyph[7]  = 128'h000000000000F433334F000000000000;
+        playerGlyph[8]  = 128'h00000000000F34444443F00000000000;
+        playerGlyph[9]  = 128'h00000000000F33333333F00000000000;
+        playerGlyph[10] = 128'h0000000000F3333333333F0000000000;
+        playerGlyph[11] = 128'h0000000000F4433333344F0000000000;
+        playerGlyph[12] = 128'h000000000F334444444433F000000000;
+        playerGlyph[13] = 128'h000000000F333333333333F000000000;
+        playerGlyph[14] = 128'h00000000F433333FF333333F00000000;
+        playerGlyph[15] = 128'h00000000F44333F22F33344F00000000;
+        playerGlyph[16] = 128'h0000000F33444F2222F44433F0000000;
+        playerGlyph[17] = 128'h0000000F33333F2222F33333F0000000;
+        playerGlyph[18] = 128'h000000F333333F2222F333333F000000;
+        playerGlyph[19] = 128'h000000F443333F2FF2F333344F000000;
+        playerGlyph[20] = 128'h00000F3344333F2FF2F3334433F00000;
+        playerGlyph[21] = 128'h00000F3334444F2FF2F4444333F00000;
+        playerGlyph[22] = 128'h0000F33333333F2FF2F33333333F0000;
+        playerGlyph[23] = 128'h0000F44333333F2222F33333344F0000;
+        playerGlyph[24] = 128'h000F3344433333F22F3333344433F000;
+        playerGlyph[25] = 128'h000F33334444444FF44444443333F000;
+        playerGlyph[26] = 128'h00F33333333333333333333333333F00;
+        playerGlyph[27] = 128'h00F44333333333333333333333344F00;
+        playerGlyph[28] = 128'h0F3344443333333333333333444433F0;
+        playerGlyph[29] = 128'h0F3333444444444444444444433333F0;
+        playerGlyph[30] = 128'hF333333333333333333333333333333F;
+        playerGlyph[31] = 128'hFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
     end
+
+    // Obstacle sprite
+	(* ramstyle = "M10K" *) reg [127:0] obsGlyph [0:15];
+	initial begin
+		 obsGlyph[0]  = 128'h00000000000000000000000000000000;
+		 obsGlyph[1]  = 128'h00000000000000000000000000000000;
+		 obsGlyph[2]  = 128'h00000000000000000000008887000000;
+		 obsGlyph[3]  = 128'h00000000000000000000088887700000;
+		 obsGlyph[4]  = 128'h00000000000000000000888887770000;
+		 obsGlyph[5]  = 128'h00000000000000000007888887777000;
+		 obsGlyph[6]  = 128'h00000000000000000007788877777000;
+		 obsGlyph[7]  = 128'h00000000000000000000777777770000;
+		 obsGlyph[8]  = 128'h00000000000000000999077777709990;
+		 obsGlyph[9]  = 128'h00000000000000000999500000059990;
+		 obsGlyph[10] = 128'h00000000000000000A995599995599A0;
+		 obsGlyph[11] = 128'h00000000000000000A999929929999A0;
+		 obsGlyph[12] = 128'h00000000000000000AAA99999999AAA0;
+		 obsGlyph[13] = 128'h000000000000000000AAAAAAAAAAAA00;
+		 obsGlyph[14] = 128'h00000000000000000000AAAAAAAA0000;
+		 obsGlyph[15] = 128'h00000000000000000000000000000000;
+	end
+	
+		// Title 
+		localparam TITLE_LEN = 15;
+		localparam TITLE_X = 252;
+		
+		reg [3:0] title_text [0:TITLE_LEN-1];
+		initial begin
+			 title_text[0]  = 0;   // A
+			 title_text[1]  = 1;   // L
+			 title_text[2]  = 2;   // U
+			 title_text[3]  = 3;   // M
+			 title_text[4]  = 4;   // I
+			 title_text[5]  = 5;   // N
+			 title_text[6]  = 0;   // A
+			 title_text[7]  = 6;   // T
+			 title_text[8]  = 4;   // I
+		
+			 title_text[9]  = 4'd15; // space
+		
+			 title_text[10] = 7;   // D
+			 title_text[11] = 8;   // O
+			 title_text[12] = 7;   // D
+			 title_text[13] = 9;   // G
+			 title_text[14] = 10;  // E
+		end
+		
+		wire [127:0] font_row;
+		reg  [3:0]   font_sel;
+		reg  [3:0]   font_row_index;
+		wire [31:0] font_row32;
+		assign font_row32 = font_row[31:0];
+		
+		FontROM font_rom (
+			 .char_sel(font_sel),
+			 .row(font_row_index),
+			 .glyph_row(font_row)
+		);
 
     //=====================================================
     // Sprite position registers
@@ -136,7 +191,11 @@ module vgaFSM (
     reg [4:0] load_index;   // sprite index (0 = player, 1.. = obstacles)
     reg [9:0] temp_x;       // holds X while reading Y
 
-    integer i, k;
+    integer i, k, j, t;
+	 integer sx_p, sy_p, sx_o, sy_o;
+	 integer cx, px;
+	 integer bit_offset;
+	 
     wire loaded = (load_state == L_DONE);
 
     always @(posedge clk) begin
@@ -279,59 +338,90 @@ module vgaFSM (
         end
     end
 
-    //=====================================================
-    // Per-pixel drawing logic (combinational)
-    //=====================================================
-    reg player_pixel;
-    reg obs_pixel;
 
-    integer j;
+	// Drawing Logic
+    reg [3:0] sprite_index;
+    reg [3:0] pix;
 
     always @(*) begin
-        player_pixel = 1'b0;
-        obs_pixel    = 1'b0;
+		  font_row_index = 4'b0;
+        sprite_index = 4'd0;   // 0 = transparent / background
 
         if (bright && loaded) begin
-            // Player
+        // Title
+        if (vCount >= 4 && vCount < 12) begin
+            font_row_index = vCount - 4;   // 0..7
+
+            for (t = 0; t < TITLE_LEN; t = t + 1) begin
+                cx = TITLE_X + (t * 9);    // 8px glyph + 1px spacing
+
+                if (hCount >= cx && hCount < cx + 8) begin
+                    px = hCount - cx;      // 0..7 inside glyph
+
+                    font_sel = title_text[t];
+
+                    if (font_sel != 4'd15) begin   // 15 = SPACE
+                        // Select nibble based on px (0..7)
+                        case (px)
+                            0: pix = font_row32[3:0];
+                            1: pix = font_row32[7:4];
+                            2: pix = font_row32[11:8];
+                            3: pix = font_row32[15:12];
+                            4: pix = font_row32[19:16];
+                            5: pix = font_row32[23:20];
+                            6: pix = font_row32[27:24];
+                            7: pix = font_row32[31:28];
+                            default: pix = 4'd0;
+                        endcase
+
+                        if (pix != 4'd0)
+                            sprite_index = pix;  // draw letter pixel
+                    end
+                end
+            end
+        end
+				
+            // Player on top
             if (hCount >= player_x && hCount < player_x + PLAYER_W &&
                 vCount >= player_y && vCount < player_y + PLAYER_H) begin
 
-                player_pixel =
-                    playerGlyph[vCount - player_y]
-                               [PLAYER_W-1 - (hCount - player_x)];
+                sx_p = hCount - player_x; // 0..31
+                sy_p = vCount - player_y; // 0..31
+
+                pix = playerGlyph[sy_p][ ((PLAYER_W-1 - sx_p)*4) +: 4 ];
+                if (pix != 4'd0)
+                    sprite_index = pix;   // Only set if non-transparent
             end
 
-            // Obstacles
+            // Obstacles below player
+            // Only draw if nothing from player at this pixel
             for (j = 0; j < MAX_OBS; j = j + 1) begin
-                if (hCount >= obs_x[j] && hCount < obs_x[j] + OBS_W &&
-                    vCount >= obs_y[j] && vCount < obs_y[j] + OBS_H) begin
+                if (sprite_index == 4'd0) begin
+                    if (hCount >= obs_x[j] && hCount < obs_x[j] + OBS_W &&
+                        vCount >= obs_y[j] && vCount < obs_y[j] + OBS_H) begin
 
-                    if (obsGlyph[vCount - obs_y[j]]
-                               [OBS_W-1 - (hCount - obs_x[j])])
-                        obs_pixel = 1'b1;
+                        sx_o = hCount - obs_x[j]; // 0..15
+                        sy_o = vCount - obs_y[j]; // 0..15
+
+                        pix = obsGlyph[sy_o][ ((OBS_W-1 - sx_o)*4) +: 4 ];
+                        if (pix != 4'd0)
+                            sprite_index = pix;   // obstacle pixel
+                    end
                 end
             end
         end
     end
 
-    //=====================================================
     // Final RGB output
-    //=====================================================
     always @(posedge clk) begin
         if (!reset) begin
             {r,g,b} <= 12'h000;
-        end else if (!bright || !loaded) begin
-            // Before loaded is true, or outside visible: black
+        end else if (!bright || !loaded || sprite_index == 4'd0) begin
+            // Outside visible region, not loaded yet, or transparent: black
             {r,g,b} <= 12'h000;
-        end else if (player_pixel) begin
-            // Player: white
-            {r,g,b} <= 12'hFFF;
-        end else if (obs_pixel) begin
-            // Obstacles: red
-            {r,g,b} <= {4'hF, 4'h0, 4'h0};
         end else begin
-            // Background: black
-            {r,g,b} <= 12'h000;
+            // Look up color from palette
+            {r,g,b} <= palette[sprite_index];
         end
     end
 
