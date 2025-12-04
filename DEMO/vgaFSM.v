@@ -314,25 +314,41 @@ module vgaFSM (
 
                             // Only update positions when running
                             if (game_state == STATE_RUNNING) begin
-                                // ---------------------------------------
-                                // Player movement (WASD)
-                                // ---------------------------------------
-                                // W = up
-                                if (key_w && player_y > 0)
-                                    player_y <= player_y - 2;
+									 
+                           // ---------------------------------------
+                           // Player movement (WASD)
+                           // ---------------------------------------
+                           // W = up  : Cannot go over 0
+									if (key_w) begin
+									if (player_y > 1)
+											player_y <= player_y - 2;
+									else
+									player_y <= 10'd0;                 // stop at 0
+									end
 
-                                // S = down
-                                if (key_s && player_y < (480 - PLAYER_H))
-                                    player_y <= player_y + 2;
+									// S = down : Cannot go under (480 - PLAYER_H)
+									if (key_s) begin
+                           if (player_y + 10'd2 < (480 - PLAYER_H))
+											player_y <= player_y + 10'd2;
+									else
+									player_y <= (480 - PLAYER_H);
+									end
 
-                                // A = left
-                                if (key_a && player_x > 0)
-                                    player_x <= player_x - 2;
+									// A = left : Cannot go left over 0
+									if (key_a) begin
+									if (player_x > 1)
+										  player_x <= player_x - 10'd2;
+									else
+									player_x <= 10'd0;
+									end
 
-                                // D = right
-                                if (key_d && player_x < (640 - PLAYER_W))
-                                    player_x <= player_x + 2;
-
+									// D = right : Cannot go right over (640 - PLAYER_W)
+									if (key_d) begin
+									if (player_x + 10'd2 < (640 - PLAYER_W))
+											player_x <= player_x + 10'd2;
+									else
+									player_x <= (640 - PLAYER_W);
+									end
                                 // ---------------------------------------
                                 // Obstacle movement + collision detect
                                 // even index -> horizontal
@@ -406,29 +422,64 @@ module vgaFSM (
     end
 
 
-	// Drawing Logic
+	    // Drawing Logic
     reg [3:0] sprite_index;
     reg [3:0] pix;
 
     always @(*) begin
-		font_row_index = 4'b0;
-        sprite_index = 4'd0;   // 0 = transparent / background
+        sprite_index   = 4'd0;   
+        font_row_index = 4'b0;
+        font_sel       = 4'd0;
+        pix            = 4'd0;
 
         if (bright && loaded) begin
-            // Title
-            if (vCount >= 4 && vCount < 12) begin
-                font_row_index = vCount - 4;   // 0..7
+            // ------------------------------------
+            // 1) Draw player first
+            // ------------------------------------
+            if (hCount >= player_x && hCount < player_x + PLAYER_W &&
+                vCount >= player_y && vCount < player_y + PLAYER_H) begin
+
+                sx_p = hCount - player_x; // 0..31
+                sy_p = vCount - player_y; // 0..31
+
+                pix = playerGlyph[sy_p][ ((PLAYER_W-1 - sx_p)*4) +: 4 ];
+                if (pix != 4'd0)
+                    sprite_index = pix;   // player pixel
+            end
+
+            // ------------------------------------
+            // 2) Obstacle
+            // ------------------------------------
+            for (j = 0; j < MAX_OBS; j = j + 1) begin
+                if (sprite_index == 4'd0) begin
+                    if (hCount >= obs_x[j] && hCount < obs_x[j] + OBS_W &&
+                        vCount >= obs_y[j] && vCount < obs_y[j] + OBS_H) begin
+
+                        sx_o = hCount - obs_x[j]; // 0..15
+                        sy_o = vCount - obs_y[j]; // 0..15
+
+                        pix = obsGlyph[sy_o][ ((OBS_W-1 - sx_o)*4) +: 4 ];
+                        if (pix != 4'd0)
+                            sprite_index = pix;   // Obstacle pixel
+                    end
+                end
+            end
+
+            // ------------------------------------
+            // 3) Title
+            // ------------------------------------
+            if (sprite_index == 4'd0 && vCount >= 4 && vCount < 12) begin
+                font_row_index = vCount - 4;   // 0..7 
 
                 for (t = 0; t < TITLE_LEN; t = t + 1) begin
-                    cx = TITLE_X + (t * 9);    // 8px glyph + 1px spacing
+                    cx = TITLE_X + (t * 9);    // 8px + 1px gap
 
                     if (hCount >= cx && hCount < cx + 8) begin
-                        px = hCount - cx;      // 0..7 inside glyph
+                        px = hCount - cx;      // 0..7
 
                         font_sel = title_text[t];
-
-                        if (font_sel != 4'd15) begin   // 15 = SPACE
-                            // Select nibble based on px (0..7)
+                        if (font_sel != 4'd15) begin  // 15 = space
+                            // font_row32 = font_row[31:0];
                             case (px)
                                 0: pix = font_row32[3:0];
                                 1: pix = font_row32[7:4];
@@ -441,43 +492,15 @@ module vgaFSM (
                                 default: pix = 4'd0;
                             endcase
 
-                            if (pix != 4'd0)
-                                sprite_index = pix;  // draw letter pixel
+                            if (pix != 4'd0 && sprite_index == 4'd0)
+                                sprite_index = pix; 
                         end
-                    end
-                end
-            end
-				
-            // Player on top
-            if (hCount >= player_x && hCount < player_x + PLAYER_W &&
-                vCount >= player_y && vCount < player_y + PLAYER_H) begin
-
-                sx_p = hCount - player_x; // 0..31
-                sy_p = vCount - player_y; // 0..31
-
-                pix = playerGlyph[sy_p][ ((PLAYER_W-1 - sx_p)*4) +: 4 ];
-                if (pix != 4'd0)
-                    sprite_index = pix;   // Only set if non-transparent
-            end
-
-            // Obstacles below player
-            // Only draw if nothing from player at this pixel
-            for (j = 0; j < MAX_OBS; j = j + 1) begin
-                if (sprite_index == 4'd0) begin
-                    if (hCount >= obs_x[j] && hCount < obs_x[j] + OBS_W &&
-                        vCount >= obs_y[j] && vCount < obs_y[j] + OBS_H) begin
-
-                        sx_o = hCount - obs_x[j]; // 0..15
-                        sy_o = vCount - obs_y[j]; // 0..15
-
-                        pix = obsGlyph[sy_o][ ((OBS_W-1 - sx_o)*4) +: 4 ];
-                        if (pix != 4'd0)
-                            sprite_index = pix;   // obstacle pixel
                     end
                 end
             end
         end
     end
+
 
     // Final RGB output
     always @(posedge clk) begin
